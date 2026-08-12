@@ -1,0 +1,33 @@
+# =============================================================================
+# job-scout — arquivo de configuração
+# =============================================================================
+
+# Chave de API da Anthropic, usada para analisar o fit das vagas com o
+# perfil (profile.md) via Claude Haiku 4.5.
+# Pode ser obtida em https://console.anthropic.com/
+anthropic_api_key: ""
+
+# Expressão cron (formato padrão de 5 campos: minuto hora dia mês dia-da-semana)
+# que define a frequência de execução do crawler + análise.
+# Exemplo abaixo: todos os dias às 8h e às 20h.
+schedule: "0 8,20 * * *"
+
+# Pontuação mínima de fit (0-100) para que uma vaga seja considerada relevante
+# e exibida com destaque no dashboard.
+min_fit_score: 60
+
+# Porta em que o servidor HTTP do dashboard vai escutar.
+server_port: 8080
+
+# Lista de crawlers configurados. Cada crawler busca vagas em uma fonte
+# específica (ex: site de empregos) usando os termos de busca informados.
+crawlers:
+  - name: "example-jobs"
+    # Se false, o crawler é carregado mas não executado.
+    enabled: false
+    # Termos usados na busca de vagas (ex: cargos, tecnologias).
+    search_terms:
+      - "desenvolvedor go"
+      - "golang backend"
+    # Número máximo de páginas de resultados a percorrer por execução.
+    max_pages: 3
