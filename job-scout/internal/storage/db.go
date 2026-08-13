@@ -193,13 +193,13 @@ func (db *DB) GetJobByID(id string) (models.Job, models.Analysis, error) {
 	return job, analysis, nil
 }
 
-// InsertAnalysis insere uma nova análise no banco. Se ID ou CreatedAt
-// estiverem vazios, valores padrão são gerados automaticamente.
-func (db *DB) InsertAnalysis(a models.Analysis) error {
+// InsertAnalysis insere uma nova análise no banco e retorna o ID usado. Se ID
+// ou CreatedAt estiverem vazios, valores padrão são gerados automaticamente.
+func (db *DB) InsertAnalysis(a models.Analysis) (string, error) {
 	if a.ID == "" {
 		id, err := newID()
 		if err != nil {
-			return fmt.Errorf("erro ao gerar id da análise: %w", err)
+			return "", fmt.Errorf("erro ao gerar id da análise: %w", err)
 		}
 		a.ID = id
 	}
@@ -213,9 +213,9 @@ func (db *DB) InsertAnalysis(a models.Analysis) error {
 		a.ID, a.JobID, a.FitScore, a.Summary, a.Benefits, a.FitReasoning, a.ResumeMD, a.ResumePDFPath, a.CreatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("erro ao inserir análise: %w", err)
+		return "", fmt.Errorf("erro ao inserir análise: %w", err)
 	}
-	return nil
+	return a.ID, nil
 }
 
 // UpdateJobStatus atualiza o status de uma vaga existente.
