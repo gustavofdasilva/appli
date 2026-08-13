@@ -2,3 +2,4 @@
 /job-scout.exe
 /data/*.db
 /data/resumes/*.pdf
+/config.yaml
