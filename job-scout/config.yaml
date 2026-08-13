@@ -22,12 +22,27 @@ server_port: 8080
 # Lista de crawlers configurados. Cada crawler busca vagas em uma fonte
 # específica (ex: site de empregos) usando os termos de busca informados.
 crawlers:
-  - name: "example-jobs"
-    # Se false, o crawler é carregado mas não executado.
-    enabled: false
-    # Termos usados na busca de vagas (ex: cargos, tecnologias).
-    search_terms:
-      - "desenvolvedor go"
-      - "golang backend"
-    # Número máximo de páginas de resultados a percorrer por execução.
+  - name: gupy
+    enabled: true
+    search_terms: ["desenvolvedor backend", "golang", "engenheiro de software"]
+    max_pages: 5 # 5 páginas x 10 vagas = até 50 vagas por search_term
+  - name: indeed
+    enabled: true
+    search_terms: ["backend developer", "golang"]
     max_pages: 3
+  - name: remoteok
+    enabled: true
+    search_terms: ["golang", "backend", "software engineer"]
+    max_pages: 1 # ignorado — API retorna tudo de uma vez
+  - name: programathor
+    enabled: true
+    search_terms: ["golang", "backend", "desenvolvedor"]
+    max_pages: 3
+  - name: trampos
+    enabled: true
+    search_terms: ["desenvolvedor", "backend", "engenheiro"]
+    max_pages: 3
+  - name: linkedin
+    enabled: false
+    search_terms: []
+    max_pages: 0
