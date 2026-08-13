@@ -171,11 +171,12 @@ func (db *DB) GetJobs(status string, minScore int) ([]models.Job, error) {
 // analisada, caso em que os demais campos de análise vêm zerados.
 type JobWithAnalysis struct {
 	models.Job
-	FitScore     int    `json:"fit_score"`
-	Summary      string `json:"summary"`
-	Benefits     string `json:"benefits"`
-	FitReasoning string `json:"fit_reasoning"`
-	HasAnalysis  bool   `json:"has_analysis"`
+	FitScore      int    `json:"fit_score"`
+	Summary       string `json:"summary"`
+	Benefits      string `json:"benefits"`
+	FitReasoning  string `json:"fit_reasoning"`
+	ResumePDFPath string `json:"resume_pdf_path"`
+	HasAnalysis   bool   `json:"has_analysis"`
 }
 
 // GetJobsWithAnalysis retorna as vagas com os dados da análise mais recente
@@ -185,7 +186,7 @@ type JobWithAnalysis struct {
 func (db *DB) GetJobsWithAnalysis(status string, minScore int) ([]JobWithAnalysis, error) {
 	query := `
 		SELECT j.id, j.source, j.title, j.company, j.location, j.url, j.description, j.salary, j.found_at, j.status,
-		       COALESCE(a.id, ''), COALESCE(a.fit_score, 0), COALESCE(a.summary, ''), COALESCE(a.benefits, ''), COALESCE(a.fit_reasoning, '')
+		       COALESCE(a.id, ''), COALESCE(a.fit_score, 0), COALESCE(a.summary, ''), COALESCE(a.benefits, ''), COALESCE(a.fit_reasoning, ''), COALESCE(a.resume_pdf_path, '')
 		FROM jobs j
 		LEFT JOIN analyses a ON a.id = (
 			SELECT id FROM analyses WHERE job_id = j.id ORDER BY created_at DESC LIMIT 1
@@ -216,7 +217,7 @@ func (db *DB) GetJobsWithAnalysis(status string, minScore int) ([]JobWithAnalysi
 		var analysisID string
 		if err := rows.Scan(
 			&item.ID, &item.Source, &item.Title, &item.Company, &item.Location, &item.URL, &item.Description, &item.Salary, &item.FoundAt, &item.Status,
-			&analysisID, &item.FitScore, &item.Summary, &item.Benefits, &item.FitReasoning,
+			&analysisID, &item.FitScore, &item.Summary, &item.Benefits, &item.FitReasoning, &item.ResumePDFPath,
 		); err != nil {
 			return nil, fmt.Errorf("erro ao ler vaga com análise: %w", err)
 		}

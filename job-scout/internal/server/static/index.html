@@ -4,148 +4,314 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Job Scout</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body v-scope="App()" @vue:mounted="init()">
   <header>
-    <h1>Job Scout</h1>
-    <span class="badge" v-text="statusCounts.new || 0" title="vagas novas"></span>
-    <button :disabled="triggering" @click="trigger()" v-text="triggering ? 'Rodando...' : 'Rodar agora'"></button>
-    <span class="run-info">
-      Último crawl: <span v-text="formatDate(lastRun)"></span> |
-      Próximo: <span v-text="formatDate(nextRun)"></span>
-    </span>
+    <div class="header-left">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ededed" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="12" cy="12" r="9"></circle>
+        <circle cx="12" cy="12" r="4.5"></circle>
+        <circle cx="12" cy="12" r="1.2" fill="#ededed" stroke="none"></circle>
+        <path d="M12 12 L18.4 7.4"></path>
+      </svg>
+      <span class="brand">Job Scout</span>
+      <span class="badge" v-text="newCount + ' novas'"></span>
+    </div>
+    <div class="header-right">
+      <span class="header-meta" v-text="headerMeta"></span>
+      <button class="run-button" :disabled="running" @click="trigger()">
+        <span v-if="running" class="spinner"></span>
+        <svg v-else width="10" height="10" viewBox="0 0 12 12" fill="#ededed"><path d="M2.5 1.5 L10 6 L2.5 10.5 Z"></path></svg>
+        <span v-text="running ? 'Rodando...' : 'Rodar agora'"></span>
+      </button>
+    </div>
   </header>
 
-  <section class="filters">
-    <label>
-      Status
-      <select v-model="status" @change="loadJobs()">
-        <option value="">Todas</option>
-        <option value="new">Novas</option>
-        <option value="reviewed">Revisadas</option>
-        <option value="applied">Aplicadas</option>
-        <option value="ignored">Ignoradas</option>
-      </select>
-    </label>
-    <label>
-      Score mínimo: <span v-text="minScore"></span>
-      <input type="range" min="0" max="100" step="5" v-model.number="minScore" @change="loadJobs()" />
-    </label>
-  </section>
-
-  <main>
-    <p class="empty-state" v-if="!loading && jobs.length === 0">Nenhuma vaga encontrada com esses filtros.</p>
-
-    <div class="job-grid">
-      <div class="job-card" v-for="job in jobs" :key="job.id">
-        <div class="job-card-top">
-          <div>
-            <h3 v-text="job.title"></h3>
-            <p class="job-meta" v-text="[job.company, job.location].filter(Boolean).join(' · ')"></p>
-          </div>
-          <span class="score-badge" :class="scoreBadgeClass(job.fit_score)" v-text="job.fit_score + '%'"></span>
+  <div class="body">
+    <section class="list-pane" :class="{ mobile: mobile }" v-show="showList">
+      <div class="list-pane-header">
+        <div class="tabs">
+          <button v-for="t in tabs" :key="t.key" class="tab" :class="{ active: tab === t.key }" @click="tab = t.key" v-text="t.label"></button>
         </div>
-
-        <p class="job-summary" v-text="job.summary"></p>
-
-        <ul class="benefits" v-if="benefitsList(job.benefits).length">
-          <li v-for="b in benefitsList(job.benefits)" v-text="b"></li>
-        </ul>
-
-        <p class="fit-reasoning" v-if="job.fit_reasoning" v-text="job.fit_reasoning"></p>
-
-        <div class="job-actions">
-          <a class="button-link secondary-button" :href="'/api/jobs/' + job.id + '/resume'" target="_blank" rel="noopener">Ver Currículo</a>
-          <a class="button-link secondary-button" :href="job.url" target="_blank" rel="noopener">Abrir Vaga</a>
-          <select :value="job.status" @change="updateStatus(job, $event)">
-            <option value="new">Novo</option>
-            <option value="reviewed">Revisado</option>
-            <option value="applied">Aplicado</option>
-            <option value="ignored">Ignorar</option>
-          </select>
+        <div class="score-filter">
+          <span>Score mín</span>
+          <input type="range" min="0" max="100" step="1" v-model.number="minScore" />
+          <span class="score-value" v-text="minScore"></span>
         </div>
       </div>
-    </div>
-  </main>
+
+      <div class="job-list">
+        <div v-for="job in visibleJobs" :key="job.id" class="job-card" :class="{ selected: job.id === selectedId }" @click="selectJob(job)">
+          <div class="job-card-top">
+            <span class="score-pill" :class="scoreClass(job)" v-text="scoreLabel(job)"></span>
+            <span class="job-card-title" v-text="job.title"></span>
+          </div>
+          <div class="job-card-company" v-text="job.company"></div>
+          <div class="job-card-location" v-text="job.location"></div>
+          <div class="job-card-bottom">
+            <span class="source-pill" v-text="job.source"></span>
+            <span class="job-age" v-text="formatAge(job.found_at)"></span>
+          </div>
+        </div>
+        <div class="empty-state" v-if="visibleJobs.length === 0">Nenhuma vaga com esses filtros.</div>
+      </div>
+    </section>
+
+    <section class="detail-pane" v-show="showDetail">
+      <div class="no-selection" v-if="!selected">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        </svg>
+        <span>Selecione uma vaga para ver os detalhes</span>
+      </div>
+
+      <div class="detail-scroll" v-if="selected">
+        <div class="mobile-back-bar" v-if="mobile">
+          <button class="back-button" @click="back()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+            Voltar
+          </button>
+        </div>
+
+        <div class="detail-head">
+          <div>
+            <h1 class="detail-title" v-text="selected.title"></h1>
+            <div class="detail-meta" v-text="metaLine(selected)"></div>
+          </div>
+          <div class="detail-row">
+            <span class="score-pill big" :class="scoreClass(selected)" v-text="'Score: ' + scoreLabel(selected)"></span>
+            <div class="status-select-wrap">
+              <select class="status-select" :value="selected.status" @change="changeStatus($event)">
+                <option value="new">Novo</option>
+                <option value="reviewed">Revisado</option>
+                <option value="applied">Aplicado</option>
+                <option value="ignored">Ignorar</option>
+              </select>
+              <svg class="status-select-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+          </div>
+          <div class="detail-row">
+            <a class="open-job-link" :href="selected.url" target="_blank" rel="noopener">
+              Abrir vaga
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M9 7h8v8"></path></svg>
+            </a>
+            <button class="resume-button" :class="{ available: selected.resume_pdf_path }" :disabled="!selected.resume_pdf_path" :title="selected.resume_pdf_path ? 'Abrir currículo gerado' : 'Currículo ainda não gerado'" @click="openResume(selected)">Ver currículo</button>
+          </div>
+        </div>
+
+        <div class="detail-divider"></div>
+
+        <div class="detail-body">
+          <div class="detail-section" v-if="!selected.has_analysis">
+            <p>Esta vaga ainda não foi analisada.</p>
+          </div>
+          <div class="detail-section" v-if="selected.has_analysis">
+            <span class="detail-section-label">Resumo</span>
+            <p v-text="selected.summary"></p>
+          </div>
+          <div class="detail-section" v-if="selected.has_analysis && benefitsList(selected.benefits).length">
+            <span class="detail-section-label">Benefícios</span>
+            <div class="benefits-row">
+              <span class="benefit-pill" v-for="b in benefitsList(selected.benefits)" :key="b" v-text="b"></span>
+            </div>
+          </div>
+          <div class="detail-section" v-if="selected.has_analysis">
+            <span class="detail-section-label">Fit</span>
+            <p v-text="selected.fit_reasoning"></p>
+          </div>
+
+          <button class="description-toggle" @click="toggleDesc()">
+            <span v-text="'Descrição completa ' + (descOpen ? '▾' : '▸')"></span>
+          </button>
+          <div class="description-box" :class="{ open: descOpen }">
+            <p v-text="selected.description"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" v-if="toast" v-text="toast"></div>
 
   <script>
     function App() {
       return {
         jobs: [],
-        status: '',
-        minScore: 70,
+        tab: 'todas',
+        minScore: 40,
+        selectedId: null,
+        running: false,
+        toast: '',
+        descOpen: false,
+        mobile: window.innerWidth < 1024,
+        mobileView: 'list',
         lastRun: null,
         nextRun: null,
         statusCounts: {},
-        loading: false,
-        triggering: false,
+
+        tabs: [
+          { key: 'todas', label: 'Todas' },
+          { key: 'new', label: 'Novas' },
+          { key: 'reviewed', label: 'Revisadas' },
+          { key: 'applied', label: 'Aplicadas' },
+          { key: 'ignored', label: 'Ignoradas' },
+        ],
 
         async init() {
+          this._onResize = () => { this.mobile = window.innerWidth < 1024; };
+          window.addEventListener('resize', this._onResize);
           await this.loadStatus();
           await this.loadJobs();
           setInterval(() => this.loadStatus(), 30000);
         },
 
         async loadJobs() {
-          this.loading = true;
           try {
-            const params = new URLSearchParams();
-            if (this.status) params.set('status', this.status);
-            if (this.minScore) params.set('min_score', this.minScore);
-            const res = await fetch('/api/jobs?' + params.toString());
+            const res = await fetch('/api/jobs');
             this.jobs = await res.json();
-          } finally {
-            this.loading = false;
+            if (!this.mobile && !this.selectedId && this.jobs.length) {
+              this.selectedId = this.jobs[0].id;
+            }
+          } catch (err) {
+            console.error('falha ao carregar vagas', err);
           }
         },
 
         async loadStatus() {
-          const res = await fetch('/api/status');
-          const data = await res.json();
-          this.lastRun = data.last_run;
-          this.nextRun = data.next_run;
-          this.statusCounts = data.counts_by_status || {};
-        },
-
-        async trigger() {
-          this.triggering = true;
           try {
-            await fetch('/api/trigger', { method: 'POST' });
-          } finally {
-            setTimeout(() => { this.triggering = false; }, 3000);
-          }
-        },
-
-        async updateStatus(job, event) {
-          const newStatus = event.target.value;
-          const previous = job.status;
-          job.status = newStatus;
-          try {
-            await fetch(`/api/jobs/${job.id}/status`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: newStatus }),
-            });
-            this.loadStatus();
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            this.lastRun = data.last_run;
+            this.nextRun = data.next_run;
+            this.statusCounts = data.counts_by_status || {};
           } catch (err) {
-            job.status = previous;
+            console.error('falha ao carregar status', err);
           }
         },
 
-        scoreBadgeClass(score) {
-          if (score >= 80) return 'score-high';
-          if (score >= 60) return 'score-mid';
+        trigger() {
+          if (this.running) return;
+          this.running = true;
+          fetch('/api/trigger', { method: 'POST' }).catch(() => {});
+          clearTimeout(this._runTimer);
+          this._runTimer = setTimeout(() => {
+            this.running = false;
+            this.loadJobs();
+            this.loadStatus();
+          }, 3000);
+        },
+
+        selectJob(job) {
+          this.selectedId = job.id;
+          this.descOpen = false;
+          this.mobileView = 'detail';
+        },
+
+        back() {
+          this.mobileView = 'list';
+        },
+
+        toggleDesc() {
+          this.descOpen = !this.descOpen;
+        },
+
+        changeStatus(event) {
+          const value = event.target.value;
+          const job = this.jobs.find(j => j.id === this.selectedId);
+          if (!job) return;
+          const previous = job.status;
+          job.status = value;
+          fetch(`/api/jobs/${job.id}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: value }),
+          })
+            .then(res => { if (!res.ok) throw new Error('status ' + res.status); this.loadStatus(); })
+            .catch(err => { job.status = previous; console.error('falha ao atualizar status', err); });
+          this.showToast(`Status atualizado para ${this.statusLabel(value)} ✓`);
+        },
+
+        openResume(job) {
+          if (!job || !job.resume_pdf_path) return;
+          window.open(`/api/jobs/${job.id}/resume`, '_blank');
+        },
+
+        showToast(msg) {
+          clearTimeout(this._toastTimer);
+          this.toast = msg;
+          this._toastTimer = setTimeout(() => { this.toast = ''; }, 2000);
+        },
+
+        statusLabel(v) {
+          return { new: 'Novo', reviewed: 'Revisado', applied: 'Aplicado', ignored: 'Ignorado' }[v] || v;
+        },
+
+        scoreClass(job) {
+          if (!job.has_analysis) return 'unscored';
+          if (job.fit_score >= 80) return 'score-high';
+          if (job.fit_score >= 60) return 'score-mid';
           return 'score-low';
+        },
+
+        scoreLabel(job) {
+          return job.has_analysis ? job.fit_score : '—';
         },
 
         benefitsList(benefits) {
           return benefits ? benefits.split(';').map(b => b.trim()).filter(Boolean) : [];
         },
 
-        formatDate(iso) {
+        metaLine(job) {
+          return [job.company, job.location].filter(Boolean).join(' · ');
+        },
+
+        formatAge(iso) {
+          if (!iso) return '';
+          const diffMs = Date.now() - new Date(iso).getTime();
+          const mins = Math.floor(diffMs / 60000);
+          if (mins < 1) return 'agora';
+          if (mins < 60) return `há ${mins} min`;
+          const hours = Math.floor(mins / 60);
+          if (hours < 24) return `há ${hours}h`;
+          const days = Math.floor(hours / 24);
+          return `há ${days} dia${days > 1 ? 's' : ''}`;
+        },
+
+        formatDateTime(iso) {
           if (!iso) return '—';
-          return new Date(iso).toLocaleString('pt-BR');
+          return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        },
+
+        get headerMeta() {
+          if (this.running) return 'Rodando pipeline...';
+          return `Último crawl: ${this.formatDateTime(this.lastRun)} · Próximo: ${this.formatDateTime(this.nextRun)}`;
+        },
+
+        get newCount() {
+          return this.statusCounts.new || 0;
+        },
+
+        get visibleJobs() {
+          return this.jobs.filter(j =>
+            (this.tab === 'todas' || j.status === this.tab) &&
+            (!j.has_analysis || j.fit_score >= this.minScore)
+          );
+        },
+
+        get selected() {
+          return this.jobs.find(j => j.id === this.selectedId) || null;
+        },
+
+        get showList() {
+          return !this.mobile || this.mobileView === 'list';
+        },
+
+        get showDetail() {
+          return !this.mobile || this.mobileView === 'detail';
         },
       };
     }
