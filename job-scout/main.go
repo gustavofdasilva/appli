@@ -1,14 +1,21 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"job-scout/internal/analyzer"
 	"job-scout/internal/config"
 	"job-scout/internal/crawler"
-	"job-scout/internal/models"
 	"job-scout/internal/resume"
+	"job-scout/internal/scheduler"
 	"job-scout/internal/storage"
 )
 
@@ -39,88 +46,51 @@ func main() {
 
 	entries := buildCrawlerEntries(cfg.Crawlers)
 	orchestrator := crawler.NewOrchestrator(entries)
+	az := analyzer.NewAnalyzer(cfg.AnthropicAPIKey)
+	resumeGen := resume.NewGenerator(cfg.AnthropicAPIKey, resumeOutputDir)
 
-	jobs, err := orchestrator.Run()
-	if err != nil {
-		slog.Error("falha ao executar crawlers", "error", err)
+	sched := scheduler.NewScheduler(cfg, db, orchestrator, az, resumeGen)
+	if err := sched.Run(); err != nil {
+		slog.Error("falha ao iniciar scheduler", "error", err)
 		os.Exit(1)
 	}
-
-	bySource := make(map[string]int)
-	var newJobs []models.Job
-	for _, j := range jobs {
-		bySource[j.Source]++
-		if j.URL == "" || db.JobExistsByURL(j.URL) {
-			continue
-		}
-		if err := db.InsertJob(j); err != nil {
-			slog.Warn("falha ao salvar vaga", "url", j.URL, "error", err)
-			continue
-		}
-		newJobs = append(newJobs, j)
+	if next, err := sched.NextRun(); err != nil {
+		slog.Warn("não foi possível calcular o próximo horário agendado", "error", err)
+	} else {
+		slog.Info("scheduler iniciado", "schedule", cfg.Schedule, "proxima_execucao", next)
 	}
 
-	slog.Info("crawlers concluídos", "total_vagas", len(jobs), "novas_vagas", len(newJobs), "por_fonte", bySource)
-
-	if cfg.AnthropicAPIKey == "" {
-		slog.Warn("anthropic_api_key não configurada — pulando análise de vagas")
-		return
+	// TODO: o handler HTTP completo do dashboard/API vem em um próximo prompt.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%d", cfg.ServerPort),
+		Handler: mux,
 	}
 
-	az := analyzer.NewAnalyzer(cfg.AnthropicAPIKey)
+	go func() {
+		slog.Info("servidor http iniciado", "port", cfg.ServerPort)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("erro no servidor http", "error", err)
+		}
+	}()
 
-	var analisadas, comFitAlto int
-	var analyses []models.Analysis
-	for _, j := range newJobs {
-		analysis, err := az.AnalyzeJob("profile.md", j)
-		if err != nil {
-			slog.Warn("falha ao analisar vaga", "title", j.Title, "error", err)
-			continue
-		}
-		id, err := db.InsertAnalysis(analysis)
-		if err != nil {
-			slog.Warn("falha ao salvar análise", "title", j.Title, "error", err)
-			continue
-		}
-		analysis.ID = id
-		analyses = append(analyses, analysis)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	<-sigCh
+	slog.Info("sinal de encerramento recebido, iniciando graceful shutdown")
 
-		analisadas++
-		if analysis.FitScore >= cfg.MinFitScore {
-			comFitAlto++
-		}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("erro ao encerrar servidor http", "error", err)
 	}
 
-	slog.Info("análise concluída",
-		"vagas_analisadas", analisadas,
-		"vagas_com_fit_alto", comFitAlto,
-		"min_fit_score", cfg.MinFitScore,
-	)
+	<-sched.Stop().Done()
 
-	profileBytes, err := os.ReadFile("profile.md")
-	if err != nil {
-		slog.Warn("falha ao ler perfil para geração de currículos, pulando etapa", "error", err)
-		return
-	}
-
-	gen := resume.NewGenerator(cfg.AnthropicAPIKey, resumeOutputDir)
-	results := gen.GenerateForHighScoreJobs(string(profileBytes), newJobs, analyses, cfg.MinFitScore)
-
-	var gerados int
-	for _, r := range results {
-		if r.Err != nil {
-			slog.Warn("falha ao gerar currículo", "title", r.Job.Title, "error", r.Err)
-			continue
-		}
-		if err := db.UpdateResumePath(r.AnalysisID, r.Path); err != nil {
-			slog.Warn("falha ao salvar caminho do currículo", "title", r.Job.Title, "error", err)
-			continue
-		}
-		gerados++
-		slog.Info("currículo gerado", "title", r.Job.Title, "path", r.Path)
-	}
-
-	slog.Info("geração de currículos concluída", "gerados", gerados, "elegiveis", len(results))
+	slog.Info("job-scout encerrado")
 }
 
 // buildCrawlerEntries instancia os crawlers correspondentes às entradas
