@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Scout</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body v-scope="App()" @vue:mounted="init()">
+  <header>
+    <h1>Job Scout</h1>
+    <span class="badge" v-text="statusCounts.new || 0" title="vagas novas"></span>
+    <button :disabled="triggering" @click="trigger()" v-text="triggering ? 'Rodando...' : 'Rodar agora'"></button>
+    <span class="run-info">
+      Último crawl: <span v-text="formatDate(lastRun)"></span> |
+      Próximo: <span v-text="formatDate(nextRun)"></span>
+    </span>
+  </header>
+
+  <section class="filters">
+    <label>
+      Status
+      <select v-model="status" @change="loadJobs()">
+        <option value="">Todas</option>
+        <option value="new">Novas</option>
+        <option value="reviewed">Revisadas</option>
+        <option value="applied">Aplicadas</option>
+        <option value="ignored">Ignoradas</option>
+      </select>
+    </label>
+    <label>
+      Score mínimo: <span v-text="minScore"></span>
+      <input type="range" min="0" max="100" step="5" v-model.number="minScore" @change="loadJobs()" />
+    </label>
+  </section>
+
+  <main>
+    <p class="empty-state" v-if="!loading && jobs.length === 0">Nenhuma vaga encontrada com esses filtros.</p>
+
+    <div class="job-grid">
+      <div class="job-card" v-for="job in jobs" :key="job.id">
+        <div class="job-card-top">
+          <div>
+            <h3 v-text="job.title"></h3>
+            <p class="job-meta" v-text="[job.company, job.location].filter(Boolean).join(' · ')"></p>
+          </div>
+          <span class="score-badge" :class="scoreBadgeClass(job.fit_score)" v-text="job.fit_score + '%'"></span>
+        </div>
+
+        <p class="job-summary" v-text="job.summary"></p>
+
+        <ul class="benefits" v-if="benefitsList(job.benefits).length">
+          <li v-for="b in benefitsList(job.benefits)" v-text="b"></li>
+        </ul>
+
+        <p class="fit-reasoning" v-if="job.fit_reasoning" v-text="job.fit_reasoning"></p>
+
+        <div class="job-actions">
+          <a class="button-link secondary-button" :href="'/api/jobs/' + job.id + '/resume'" target="_blank" rel="noopener">Ver Currículo</a>
+          <a class="button-link secondary-button" :href="job.url" target="_blank" rel="noopener">Abrir Vaga</a>
+          <select :value="job.status" @change="updateStatus(job, $event)">
+            <option value="new">Novo</option>
+            <option value="reviewed">Revisado</option>
+            <option value="applied">Aplicado</option>
+            <option value="ignored">Ignorar</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function App() {
+      return {
+        jobs: [],
+        status: '',
+        minScore: 70,
+        lastRun: null,
+        nextRun: null,
+        statusCounts: {},
+        loading: false,
+        triggering: false,
+
+        async init() {
+          await this.loadStatus();
+          await this.loadJobs();
+          setInterval(() => this.loadStatus(), 30000);
+        },
+
+        async loadJobs() {
+          this.loading = true;
+          try {
+            const params = new URLSearchParams();
+            if (this.status) params.set('status', this.status);
+            if (this.minScore) params.set('min_score', this.minScore);
+            const res = await fetch('/api/jobs?' + params.toString());
+            this.jobs = await res.json();
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async loadStatus() {
+          const res = await fetch('/api/status');
+          const data = await res.json();
+          this.lastRun = data.last_run;
+          this.nextRun = data.next_run;
+          this.statusCounts = data.counts_by_status || {};
+        },
+
+        async trigger() {
+          this.triggering = true;
+          try {
+            await fetch('/api/trigger', { method: 'POST' });
+          } finally {
+            setTimeout(() => { this.triggering = false; }, 3000);
+          }
+        },
+
+        async updateStatus(job, event) {
+          const newStatus = event.target.value;
+          const previous = job.status;
+          job.status = newStatus;
+          try {
+            await fetch(`/api/jobs/${job.id}/status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: newStatus }),
+            });
+            this.loadStatus();
+          } catch (err) {
+            job.status = previous;
+          }
+        },
+
+        scoreBadgeClass(score) {
+          if (score >= 80) return 'score-high';
+          if (score >= 60) return 'score-mid';
+          return 'score-low';
+        },
+
+        benefitsList(benefits) {
+          return benefits ? benefits.split(';').map(b => b.trim()).filter(Boolean) : [];
+        },
+
+        formatDate(iso) {
+          if (!iso) return '—';
+          return new Date(iso).toLocaleString('pt-BR');
+        },
+      };
+    }
+  </script>
+  <script src="https://unpkg.com/petite-vue@0.4.1/dist/petite-vue.iife.js" defer init></script>
+</body>
+</html>

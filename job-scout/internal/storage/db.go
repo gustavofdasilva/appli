@@ -166,6 +166,94 @@ func (db *DB) GetJobs(status string, minScore int) ([]models.Job, error) {
 	return jobs, nil
 }
 
+// JobWithAnalysis representa uma vaga junto com os dados da sua análise mais
+// recente (se houver). HasAnalysis é false quando a vaga ainda não foi
+// analisada, caso em que os demais campos de análise vêm zerados.
+type JobWithAnalysis struct {
+	models.Job
+	FitScore     int    `json:"fit_score"`
+	Summary      string `json:"summary"`
+	Benefits     string `json:"benefits"`
+	FitReasoning string `json:"fit_reasoning"`
+	HasAnalysis  bool   `json:"has_analysis"`
+}
+
+// GetJobsWithAnalysis retorna as vagas com os dados da análise mais recente
+// de cada uma (se houver), filtradas por status e/ou pontuação mínima de
+// fit. Strings vazias e valores <= 0 desativam o respectivo filtro. O
+// resultado vem ordenado por fit_score decrescente.
+func (db *DB) GetJobsWithAnalysis(status string, minScore int) ([]JobWithAnalysis, error) {
+	query := `
+		SELECT j.id, j.source, j.title, j.company, j.location, j.url, j.description, j.salary, j.found_at, j.status,
+		       COALESCE(a.id, ''), COALESCE(a.fit_score, 0), COALESCE(a.summary, ''), COALESCE(a.benefits, ''), COALESCE(a.fit_reasoning, '')
+		FROM jobs j
+		LEFT JOIN analyses a ON a.id = (
+			SELECT id FROM analyses WHERE job_id = j.id ORDER BY created_at DESC LIMIT 1
+		)
+		WHERE 1=1
+	`
+	args := []any{}
+
+	if status != "" {
+		query += " AND j.status = ?"
+		args = append(args, status)
+	}
+	if minScore > 0 {
+		query += " AND COALESCE(a.fit_score, 0) >= ?"
+		args = append(args, minScore)
+	}
+	query += " ORDER BY COALESCE(a.fit_score, 0) DESC, j.found_at DESC"
+
+	rows, err := db.conn.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao buscar vagas com análise: %w", err)
+	}
+	defer rows.Close()
+
+	results := []JobWithAnalysis{}
+	for rows.Next() {
+		var item JobWithAnalysis
+		var analysisID string
+		if err := rows.Scan(
+			&item.ID, &item.Source, &item.Title, &item.Company, &item.Location, &item.URL, &item.Description, &item.Salary, &item.FoundAt, &item.Status,
+			&analysisID, &item.FitScore, &item.Summary, &item.Benefits, &item.FitReasoning,
+		); err != nil {
+			return nil, fmt.Errorf("erro ao ler vaga com análise: %w", err)
+		}
+		item.HasAnalysis = analysisID != ""
+		results = append(results, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar vagas com análise: %w", err)
+	}
+
+	return results, nil
+}
+
+// CountJobsByStatus retorna o total de vagas agrupado por status.
+func (db *DB) CountJobsByStatus() (map[string]int, error) {
+	rows, err := db.conn.Query(`SELECT status, COUNT(1) FROM jobs GROUP BY status`)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao contar vagas por status: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("erro ao ler contagem por status: %w", err)
+		}
+		counts[status] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar contagem por status: %w", err)
+	}
+
+	return counts, nil
+}
+
 // GetJobByID retorna a vaga e sua análise mais recente (se existir).
 func (db *DB) GetJobByID(id string) (models.Job, models.Analysis, error) {
 	var job models.Job

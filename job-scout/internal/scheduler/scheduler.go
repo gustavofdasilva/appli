@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -29,6 +30,11 @@ type Scheduler struct {
 	resumeGen    *resume.Generator
 
 	cron *cron.Cron
+	wg   sync.WaitGroup
+
+	mu      sync.Mutex
+	running bool
+	lastRun time.Time
 }
 
 // NewScheduler cria um Scheduler com as dependências do pipeline já
@@ -54,14 +60,25 @@ func (s *Scheduler) Run() error {
 	return nil
 }
 
-// Stop encerra o agendador, aguardando o ciclo em execução (se houver)
-// terminar. O context retornado é encerrado quando isso acontece.
+// Stop impede novos disparos agendados pelo cron. Não espera por ciclos em
+// execução — use Wait para isso. O context retornado é encerrado quando o
+// próprio cron termina de parar.
 func (s *Scheduler) Stop() context.Context {
 	return s.cron.Stop()
 }
 
+// Wait bloqueia até que qualquer ciclo do pipeline em execução (disparado
+// pelo cron ou via RunNow) termine. Deve ser chamado durante o graceful
+// shutdown, antes de fechar o banco de dados, para garantir que nenhuma
+// goroutine de pipeline continue rodando (e escrevendo no banco) depois que
+// o processo começa a encerrar.
+func (s *Scheduler) Wait() {
+	s.wg.Wait()
+}
+
 // RunNow dispara o pipeline imediatamente, fora do horário agendado — usado
-// pelo disparo manual via API.
+// pelo disparo manual via API. Se um ciclo já estiver em execução (agendado
+// ou manual), o disparo é ignorado.
 func (s *Scheduler) RunNow() {
 	s.runPipeline()
 }
@@ -76,11 +93,36 @@ func (s *Scheduler) NextRun() (time.Time, error) {
 	return schedule.Next(time.Now()), nil
 }
 
+// LastRun retorna o horário de início do último ciclo concluído do pipeline.
+// O segundo valor é false se o pipeline ainda não rodou nenhuma vez.
+func (s *Scheduler) LastRun() (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastRun, !s.lastRun.IsZero()
+}
+
 // runPipeline executa um ciclo completo: crawl de todas as fontes
 // habilitadas, dedup e persistência das vagas novas, análise de fit via LLM
 // e geração de currículo para as vagas com fit_score acima do mínimo
 // configurado.
 func (s *Scheduler) runPipeline() {
+	s.mu.Lock()
+	if s.running {
+		s.mu.Unlock()
+		slog.Warn("pipeline: ciclo já em execução, ignorando novo disparo")
+		return
+	}
+	s.running = true
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	defer func() {
+		s.mu.Lock()
+		s.running = false
+		s.mu.Unlock()
+		s.wg.Done()
+	}()
+
 	start := time.Now()
 	slog.Info("pipeline: iniciando ciclo")
 
@@ -150,6 +192,10 @@ func (s *Scheduler) runPipeline() {
 			}
 		}
 	}
+
+	s.mu.Lock()
+	s.lastRun = start
+	s.mu.Unlock()
 
 	slog.Info("pipeline: ciclo concluído",
 		"duracao", time.Since(start),

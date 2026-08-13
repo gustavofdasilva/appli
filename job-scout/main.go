@@ -16,6 +16,7 @@ import (
 	"job-scout/internal/crawler"
 	"job-scout/internal/resume"
 	"job-scout/internal/scheduler"
+	"job-scout/internal/server"
 	"job-scout/internal/storage"
 )
 
@@ -36,7 +37,11 @@ func main() {
 		slog.Error("falha ao abrir banco de dados", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			slog.Error("erro ao fechar banco de dados", "error", err)
+		}
+	}()
 
 	slog.Info("job-scout inicializado com sucesso",
 		"server_port", cfg.ServerPort,
@@ -60,14 +65,9 @@ func main() {
 		slog.Info("scheduler iniciado", "schedule", cfg.Schedule, "proxima_execucao", next)
 	}
 
-	// TODO: o handler HTTP completo do dashboard/API vem em um próximo prompt.
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.ServerPort),
-		Handler: mux,
+		Handler: server.New(db, sched).Handler(),
 	}
 
 	go func() {
@@ -89,6 +89,9 @@ func main() {
 	}
 
 	<-sched.Stop().Done()
+
+	slog.Info("aguardando eventuais ciclos do pipeline em execução terminarem")
+	sched.Wait()
 
 	slog.Info("job-scout encerrado")
 }
