@@ -1,2 +1,134 @@
-# appli
-Auto job applier
+# Job Scout
+
+Ferramenta pessoal que rastreia vagas de emprego em múltiplas fontes, usa a
+API da Anthropic (Claude) para avaliar o fit de cada vaga contra seu perfil
+e gera currículos personalizados para as vagas mais promissoras — tudo
+rodando periodicamente em background, com um dashboard web pra acompanhar.
+
+Pipeline: **crawl → dedup → análise de fit (LLM) → geração de currículo →
+dashboard**.
+
+## Setup no Termux
+
+```bash
+pkg update && pkg upgrade
+pkg install golang git pandoc python weasyprint
+pip install weasyprint  # se necessário
+
+git clone <url-do-repositorio>
+cd job-scout
+go mod tidy
+```
+
+`pandoc` + `weasyprint` são usados só na etapa de conversão do currículo de
+Markdown pra PDF. Se algo der errado nessa instalação, o pipeline continua
+funcionando normalmente — veja [Limitações conhecidas](#limitações-conhecidas).
+
+## Configuração inicial
+
+1. **Preencha o `config.yaml`**: chave de API da Anthropic
+   (`anthropic_api_key`), expressão cron (`schedule`), `min_fit_score`,
+   `server_port` e a lista de `crawlers` (quais fontes ficam habilitadas,
+   termos de busca e número de páginas por termo).
+2. **Preencha o `profile.md`** com suas informações reais — experiência,
+   tecnologias, resultados quantificados. Esse arquivo é lido do disco a
+   cada análise (nunca cacheado) e enviado como contexto pra LLM tanto na
+   análise de fit quanto na geração de currículo, então evite dados
+   sensíveis desnecessários (CPF, endereço completo etc).
+3. **Rode**:
+   ```bash
+   go run .
+   ```
+4. **Acesse o dashboard**: [http://localhost:8080](http://localhost:8080)
+   (ou a porta configurada em `server_port`).
+
+Se `anthropic_api_key` estiver vazia, o job-scout continua rastreando e
+salvando vagas normalmente — só pula as etapas de análise de fit e geração
+de currículo, com um aviso no log.
+
+## Rodar em background no Termux
+
+```bash
+# Instalar tmux
+pkg install tmux
+
+# Nova sessão
+tmux new -s jobscout
+go run .
+# Ctrl+B D pra destacar (a sessão continua rodando em background)
+```
+
+Pra voltar depois: `tmux attach -t jobscout`.
+
+## Testar sem esperar o cron
+
+Pelo dashboard: acesse `http://localhost:8080` e clique em **"Rodar
+agora"**.
+
+Ou via terminal:
+```bash
+curl -X POST http://localhost:8080/api/trigger
+```
+
+Isso dispara o pipeline completo imediatamente, fora do horário agendado.
+Se um ciclo já estiver em execução (agendado ou manual), o disparo é
+ignorado — não roda dois ciclos em paralelo.
+
+## API
+
+| Rota | Descrição |
+|---|---|
+| `GET /api/jobs?status=&min_score=` | Lista vagas + análise, ordenadas por fit_score |
+| `GET /api/jobs/{id}` | Detalhes completos de uma vaga (job + analysis) |
+| `GET /api/jobs/{id}/resume` | Serve o currículo em PDF (ou `.md` como fallback) |
+| `POST /api/jobs/{id}/status` | Atualiza status (`new`/`reviewed`/`applied`/`ignored`) |
+| `POST /api/trigger` | Dispara o pipeline imediatamente |
+| `GET /api/status` | Último run, próximo run, contagem de vagas por status |
+
+## Estrutura
+
+```
+internal/crawler/    fontes de vagas (Gupy, Indeed, RemoteOK, ProgramaThor, Trampos; LinkedIn é stub)
+internal/analyzer/   análise de fit via API da Anthropic
+internal/resume/     geração de currículo (LLM -> Markdown -> PDF via pandoc)
+internal/scheduler/  cron + orquestração do pipeline completo
+internal/server/     API HTTP + dashboard estático (embutido no binário)
+internal/storage/    persistência em SQLite
+```
+
+## Limitações conhecidas
+
+- **LinkedIn não é suportado.** O crawler é um stub que retorna erro — o
+  LinkedIn exige autenticação e tem proteções anti-scraping agressivas
+  demais pra v1.
+- **Indeed, ProgramaThor e Trampos dependem de scraping de HTML**, não de
+  API pública. O markup desses sites muda com frequência e pode quebrar o
+  parsing sem aviso — se um desses crawlers parar de encontrar vagas, os
+  seletores CSS em `internal/crawler/*.go` são o primeiro lugar a revisar.
+  Gupy e RemoteOK usam API pública/JSON e são mais estáveis.
+- **PDF depende de `pandoc` + `weasyprint` instalados no sistema.** Se
+  `pandoc` não for encontrado (ou falhar), o currículo em Markdown ainda é
+  salvo em `data/resumes/{job_id}.md` e o pipeline continua normalmente —
+  só não gera o PDF (`resume_pdf_path` fica apontando pro `.md`).
+- **Dashboard e API não têm autenticação.** Qualquer pessoa com acesso à
+  porta configurada pode ver vagas, mudar status e disparar o pipeline
+  (que consome créditos da API da Anthropic). Rodar atrás de uma VPN/rede
+  privada ou só em `localhost` é recomendado.
+- **Sem suporte a múltiplos perfis ou múltiplos usuários** — o job-scout
+  assume um único `profile.md` e um único banco SQLite local.
+- **Sem paginação no `/api/jobs`** — a lista completa (filtrada) é
+  retornada de uma vez. Pra volumes muito grandes de vagas acumuladas, a
+  resposta e a renderização no dashboard podem ficar lentas.
+- **Sem suíte de testes automatizados.** A validação até agora foi manual
+  (builds, `go vet`, smoke tests pontuais contra APIs reais e contra um
+  banco de dados de teste). Adicionar testes automatizados pros pacotes
+  `crawler`, `analyzer`, `resume` e `scheduler` é um próximo passo natural.
+- **Sem restart automático em caso de crash** no fluxo do Termux+tmux
+  documentado acima — se o processo cair, é preciso reabrir a sessão tmux
+  e rodar `go run .` de novo manualmente.
+- **Shutdown gracioso não usa timeout pro pipeline em execução** — ao
+  receber `SIGINT`/`SIGTERM`, o processo espera qualquer ciclo do pipeline
+  em andamento (crawl + análise + geração de currículo) terminar antes de
+  fechar o banco de dados. Isso evita corromper dados, mas significa que
+  encerrar o processo durante um disparo manual pode demorar (o HTTP
+  server, por outro lado, tem um timeout de shutdown de 10s).
