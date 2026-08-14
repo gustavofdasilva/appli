@@ -17,44 +17,78 @@
 # Perfil
 
 ## Resumo
-<!--
-  2-4 frases sobre quem você é profissionalmente: cargo/área atual,
-  anos de experiência, principais especialidades e o que você busca
-  na próxima oportunidade.
--->
+Desenvolvedor Full Stack Júnior com 2 anos de experiência prática na construção de sistemas backend escaláveis ​​e interfaces web, com forte foco em Golang para desenvolvimento de APIs REST, design de banco de dados e implantações em contêineres.
+
+Atualmente, trabalho em uma consultoria de software (3CON), entregando funcionalidades de nível de produção em Go, Vue.js e PostgreSQL. Interessado por arquitetura limpa, qualidade de código e sistemas escaláveis.
 
 ## Experiências
-<!--
-  Liste da mais recente para a mais antiga. Para cada experiência, inclua:
-  - Cargo, empresa e período (ex: "Desenvolvedor Backend — Empresa X (2022–presente)")
-  - 3-5 bullets com responsabilidades e resultados, preferencialmente
-    quantificados (ex: "Reduzi o tempo de build em 40% ao migrar o
-    pipeline de CI").
--->
 
-### Cargo — Empresa (mês/ano – mês/ano)
--
+### Desenvolvedor Fullstack — 3CON Consultoria e Sistemas (06/2025 – Presente)
+- Função full stack com foco em backend em uma consultoria de software, construindo sistemas de produção com Golang, Vue.js e PostgreSQL em um ambiente ágil.
+
+- Construí e mantive mais de 30 endpoints de API REST, dando suporte a fluxos de trabalho e integrações críticas para os negócios.
+
+- Otimizei consultas SQL complexas no PostgreSQL, melhorando o tempo de resposta da API e o desempenho na recuperação de dados.
+
+- Aumentei a eficiência do usuário em até 20% por meio do recurso de sumarização de pedidos, reduzindo o tempo gasto em processos manuais.
+
+- Containerizei aplicações usando Docker e Docker Compose, garantindo ambientes de desenvolvimento e produção consistentes.
+
+### Estagiário de Desenvolvimento Full Stack — 3CON Consultoria e Sistemas (08/2024 – 05/2025)
+- Contribuí para o desenvolvimento da API REST em Golang desde o início do estágio, entregando funcionalidades em produção.
+
+- Projetei e gerenciei esquemas de banco de dados PostgreSQL para suportar novas funcionalidades, aplicando práticas de otimização de SQL.
+
+- Desenvolvi componentes frontend em Vue.js conectados a serviços backend para entrega de funcionalidades de ponta a ponta.
+
+- Utilizei Docker para ambientes locais conteinerizados e pipelines de implantação.
+
+- Utilizei Git para controle de versão diário, pull requests e colaboração em equipe.
 
 ## Habilidades
-<!--
-  Liste agrupado por categoria (ex: Linguagens, Frameworks, Infra/Cloud,
-  Ferramentas, Idiomas). Indique nível de proficiência quando relevante.
--->
-- **Linguagens:**
-- **Frameworks/Bibliotecas:**
-- **Infra/Cloud:**
-- **Ferramentas:**
-- **Idiomas:**
+
+- **Linguagens:** Golang (2 anos), Javascript (2 anos), SQL (2 anos), C# (Exp. acadêmica), Java (Exp. acadêmica), Dart (2 anos), Rust (Exp. pessoal), HTML (2 anos), CSS (2 anos)
+- **Frameworks/Bibliotecas:** React (Exp. pessoal), React Native(Exp. pessoal), Gin (Exp. pessoal), Echo (Exp. pessoal), Flutter (2 anos), Typescript (Exp. pessoal), Vue.js (2 anos), Angular.js (Exp. pessoal)
+- **Infra/Cloud:** Docker (2 anos), Docker Compose (Exp. pessoal), Linux (2 anos), Git (2 anos)
+- **Ferramentas:** PostgreSQL (2 anos), MongoDB (Exp. pessoal), Tauri (Exp. pessoal), Electron (Exp. pessoal)
+- **Idiomas:** Inglês avançado (C1), Português Fluente
 
 ## Formação
-<!--
-  Curso, instituição e período. Inclua certificações relevantes aqui
-  também, se não tiver uma seção própria para elas.
--->
+### Universidade Anhembi Morumbi (UAM), São Paulo, SP - Brasil
+Bacharelado em Engenharia de Software, Fevereiro 2024 – Dezembro 2027 (Em progresso)
+
+### Senac São Paulo, São Paulo, SP - Brasil
+Ensino médio Técnico em TI – Informática, Janeiro 2021 – Dezembro 2023
 
 ## Projetos
-<!--
-  Projetos pessoais, open source ou freelance relevantes. Para cada um,
-  inclua nome, uma breve descrição, tecnologias usadas e um link (se
-  público).
--->
+### Hibounote
+Quadro infinito para criar mapas mentais e organizar anotações
+
+Features:
+- Material Design
+- Angular
+- Cookie and session storage
+- IndexDB
+- https://github.com/hibounoteapp/hibounote
+
+### Retriever.io
+yt-dlp user friendly GUI
+
+Features:
+- Rust
+- Desenvolvimento de aplicativos para desktop
+- Integração com o sistema de arquivos do SO
+https://github.com/gustavofdasilva/retriever.io
+
+### Order Manager API
+API REST pronta para produção, desenvolvida em Go.
+
+Recursos:
+- Autenticação JWT
+- Rotação de Refresh Token
+- Limitação de taxa (Rate Limiting)
+- Logs estruturados
+- Arquitetura em camadas
+- Documentação com Swagger
+- Docker Compose
+- https://github.com/gustavofdasilva/golang-order-manager-api
