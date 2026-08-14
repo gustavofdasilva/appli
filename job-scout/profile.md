@@ -16,6 +16,14 @@
 
 # Perfil
 
+## Infos importantes
+- Email: gustavofsilvas@gmail.com  
+- Telefone: +55 (11) 94557-6793  
+- Localização: SP, Brasil
+- Linekdin: https://www.linkedin.com/in/gustavo-f-da-silva/
+- Github: https://github.com/gustavofdasilva
+- Porfólio: https://gustavofdasilva.github.io 
+
 ## Resumo
 Desenvolvedor Full Stack Júnior com 2 anos de experiência prática na construção de sistemas backend escaláveis ​​e interfaces web, com forte foco em Golang para desenvolvimento de APIs REST, design de banco de dados e implantações em contêineres.
 
