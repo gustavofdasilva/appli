@@ -1,102 +1,98 @@
-<!--
-  profile.md — perfil usado pela LLM para analisar o fit das vagas e gerar
-  currículos personalizados.
-
-  Como preencher:
-  - Escreva em texto livre, em português ou inglês (o idioma usado aqui
-    tende a ser o idioma dos currículos gerados).
-  - Quanto mais específico (tecnologias, anos de experiência, resultados
-    quantificados), melhor a análise de fit e o currículo gerado.
-  - Este arquivo inteiro é enviado como contexto para a LLM, então evite
-    informações desnecessárias ou sensíveis que você não queira que sejam
-    processadas por uma API externa (ex: CPF, endereço completo).
-  - Mantenha as seções abaixo, mas sinta-se livre para adicionar
-    subseções conforme necessário.
--->
-
 # Perfil
 
-## Infos importantes
-- Email: gustavofsilvas@gmail.com  
-- Telefone: +55 (11) 94557-6793  
-- Localização: SP, Brasil
-- Linekdin: https://www.linkedin.com/in/gustavo-f-da-silva/
-- Github: https://github.com/gustavofdasilva
-- Porfólio: https://gustavofdasilva.github.io 
-
 ## Resumo
-Desenvolvedor Full Stack Júnior com 2 anos de experiência prática na construção de sistemas backend escaláveis ​​e interfaces web, com forte foco em Golang para desenvolvimento de APIs REST, design de banco de dados e implantações em contêineres.
 
-Atualmente, trabalho em uma consultoria de software (3CON), entregando funcionalidades de nível de produção em Go, Vue.js e PostgreSQL. Interessado por arquitetura limpa, qualidade de código e sistemas escaláveis.
+Desenvolvedor Full Stack com foco em backend, 2+ anos de experiência
+profissional construindo sistemas de produção com Go (Golang), APIs REST,
+PostgreSQL e Docker. Atualmente na 3CON Consultoria e Sistemas como
+Desenvolvedor Full Stack, entregando features de backend em Go e Vue.js em
+ambiente ágil. Busco oportunidades remotas como Desenvolvedor Backend ou
+Full Stack — preferencialmente com Go — em empresas que valorizem
+arquitetura limpa, código de qualidade e sistemas escaláveis. Inglês fluente
+para ambientes de trabalho internacionais.
 
 ## Experiências
 
-### Desenvolvedor Fullstack — 3CON Consultoria e Sistemas (06/2025 – Presente)
-- Função full stack com foco em backend em uma consultoria de software, construindo sistemas de produção com Golang, Vue.js e PostgreSQL em um ambiente ágil.
+### Desenvolvedor Full Stack — 3CON Consultoria e Sistemas (jun/2025 – presente)
+- Desenvolvi APIs REST em Go com Gin Framework, entregando novas
+  funcionalidades e melhorando a escalabilidade do backend em produção
+- Construí e mantive 30+ endpoints REST, suportando fluxos de negócio
+  críticos e integrações com sistemas externos
+- Otimizei queries SQL complexas no PostgreSQL, reduzindo o tempo de
+  resposta das APIs e melhorando o desempenho geral do sistema
+- Aumentei a eficiência dos usuários em até 20% com feature de
+  sumarização de pedidos, reduzindo processos manuais
+- Desenvolvi interfaces Vue.js integradas a APIs Go para entregas full-stack
+- Containerizei aplicações com Docker e Docker Compose, garantindo
+  paridade entre ambientes de dev e produção
+- Participei de code reviews, planejamento de sprints e controle de versão
+  com Git em time ágil/Scrum
 
-- Construí e mantive mais de 30 endpoints de API REST, dando suporte a fluxos de trabalho e integrações críticas para os negócios.
+### Estagiário Full Stack — 3CON Consultoria e Sistemas (ago/2024 – mai/2025)
+- Contribuí para o desenvolvimento da API REST em Go desde o início do
+  estágio, entregando features direto para produção
+- Projetei e gerenciei schemas PostgreSQL para suporte a novas
+  funcionalidades, aplicando práticas de otimização SQL
+- Desenvolvi componentes Vue.js integrados ao backend para entregas
+  full-stack end-to-end
+- Usei Docker para ambientes locais containerizados e pipelines de deploy
+- Colaborei via Git com pull requests e revisões de código em equipe
 
-- Otimizei consultas SQL complexas no PostgreSQL, melhorando o tempo de resposta da API e o desempenho na recuperação de dados.
-
-- Aumentei a eficiência do usuário em até 20% por meio do recurso de sumarização de pedidos, reduzindo o tempo gasto em processos manuais.
-
-- Containerizei aplicações usando Docker e Docker Compose, garantindo ambientes de desenvolvimento e produção consistentes.
-
-### Estagiário de Desenvolvimento Full Stack — 3CON Consultoria e Sistemas (08/2024 – 05/2025)
-- Contribuí para o desenvolvimento da API REST em Golang desde o início do estágio, entregando funcionalidades em produção.
-
-- Projetei e gerenciei esquemas de banco de dados PostgreSQL para suportar novas funcionalidades, aplicando práticas de otimização de SQL.
-
-- Desenvolvi componentes frontend em Vue.js conectados a serviços backend para entrega de funcionalidades de ponta a ponta.
-
-- Utilizei Docker para ambientes locais conteinerizados e pipelines de implantação.
-
-- Utilizei Git para controle de versão diário, pull requests e colaboração em equipe.
+### Desenvolvedor Full Stack Freelancer — Autônomo (jan/2023 – ago/2024)
+- Projetei e construí aplicações completas de forma independente — da
+  concepção à arquitetura, desenvolvimento e publicação em produção
+- Desenvolvi GymTracker, app mobile de fitness com React Native
+  (JavaScript), publicado no Google Play com ~20 usuários ativos
+- Construí API REST em Go com arquitetura em camadas (handlers, services,
+  repositories), PostgreSQL, JWT auth, rotação de refresh token, rate
+  limiting, logging estruturado e documentação Swagger
+- Desenvolvi plataforma de mídia social full-stack com React, Node.js,
+  Express e MongoDB
+- Desenvolvi Hibounote (hibounote.netlify.app): app web de notas em
+  quadro infinito com Angular
+- Desenvolvi Retriever.io (retriever-io-web.vercel.app): interface desktop
+  para yt-dlp construída com Vue.js, Rust e Tauri
 
 ## Habilidades
 
-- **Linguagens:** Golang (2 anos), Javascript (2 anos), SQL (2 anos), C# (Exp. acadêmica), Java (Exp. acadêmica), Dart (2 anos), Rust (Exp. pessoal), HTML (2 anos), CSS (2 anos)
-- **Frameworks/Bibliotecas:** React (Exp. pessoal), React Native(Exp. pessoal), Gin (Exp. pessoal), Echo (Exp. pessoal), Flutter (2 anos), Typescript (Exp. pessoal), Vue.js (2 anos), Angular.js (Exp. pessoal)
-- **Infra/Cloud:** Docker (2 anos), Docker Compose (Exp. pessoal), Linux (2 anos), Git (2 anos)
-- **Ferramentas:** PostgreSQL (2 anos), MongoDB (Exp. pessoal), Tauri (Exp. pessoal), Electron (Exp. pessoal)
-- **Idiomas:** Inglês avançado (C1), Português Fluente
+- **Linguagens:** Go/Golang (principal), JavaScript, TypeScript, Rust, SQL
+- **Frameworks/Bibliotecas:** Gin (Go), Vue.js, Angular, React Native,
+  Node.js, Express
+- **Banco de dados:** PostgreSQL (principal), MongoDB, migrações SQL
+- **Infra/DevOps:** Docker, Docker Compose, Linux, Git
+- **Arquitetura:** REST APIs, arquitetura em camadas, clean architecture,
+  microsserviços, clean code, JWT/Auth, rate limiting, logging estruturado
+- **Ferramentas:** Swagger/OpenAPI, Git, GitHub
+- **Desktop:** Rust, Tauri
+- **Idiomas:** Inglês (fluente/profissional), Português (nativo)
 
 ## Formação
-### Universidade Anhembi Morumbi (UAM), São Paulo, SP - Brasil
-Bacharelado em Engenharia de Software, Fevereiro 2024 – Dezembro 2027 (Em progresso)
 
-### Senac São Paulo, São Paulo, SP - Brasil
-Ensino médio Técnico em TI – Informática, Janeiro 2021 – Dezembro 2023
+- **Bacharelado em Engenharia de Software** — Universidade Anhembi
+  Morumbi (UAM), São Paulo (fev/2024 – dez/2027, em andamento)
+- **Ensino Médio Técnico em TI — Informática** — Senac São Paulo
+  (jan/2021 – dez/2023)
 
 ## Projetos
-### Hibounote
-Quadro infinito para criar mapas mentais e organizar anotações
 
-Features:
-- Material Design
-- Angular
-- Cookie and session storage
-- IndexDB
-- https://github.com/hibounoteapp/hibounote
+- **Order Manager API** — API REST de produção em Go com JWT auth,
+  rotação de refresh token, rate limiting, gerenciamento de sessão, logging
+  estruturado e Swagger. Arquitetura em camadas (handlers/services/repos).
+  Stack: Go, PostgreSQL, Docker.
 
-### Retriever.io
-yt-dlp user friendly GUI
+- **GymTracker** — App mobile de fitness full-stack, publicado no Google
+  Play com ~20 usuários ativos.
+  Stack: React Native (JavaScript).
 
-Features:
-- Rust
-- Desenvolvimento de aplicativos para desktop
-- Integração com o sistema de arquivos do SO
-https://github.com/gustavofdasilva/retriever.io
+- **Hibounote** (hibounote.netlify.app) — App web de notas em quadro
+  infinito com foco em arquitetura de componentes e UX.
+  Stack: Angular, TypeScript.
 
-### Order Manager API
-API REST pronta para produção, desenvolvida em Go.
+- **Retriever.io** (retriever-io-web.vercel.app) — Interface desktop
+  amigável para yt-dlp.
+  Stack: Vue.js, Rust, Tauri.
 
-Recursos:
-- Autenticação JWT
-- Rotação de Refresh Token
-- Limitação de taxa (Rate Limiting)
-- Logs estruturados
-- Arquitetura em camadas
-- Documentação com Swagger
-- Docker Compose
-- https://github.com/gustavofdasilva/golang-order-manager-api
+- **Social Media Platform** — Plataforma de mídia social full-stack
+  construída do zero para aprofundar conhecimento em arquitetura
+  frontend/backend.
+  Stack: React, Node.js, Express, MongoDB.
