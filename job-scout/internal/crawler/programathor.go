@@ -47,7 +47,7 @@ func (c *ProgramaThorCrawler) Fetch(term string, maxPages int) ([]models.Job, er
 		}
 
 		cards := findAll(doc, func(n *html.Node) bool {
-			return isTag(n, "li") && hasClass(n, "job")
+			return isTag(n, "div") && hasClass(n, "cell-list")
 		})
 		if len(cards) == 0 {
 			slog.Debug("programathor: nenhuma vaga encontrada, encerrando paginação", "term", term, "page", page)
@@ -79,12 +79,7 @@ func (c *ProgramaThorCrawler) Fetch(term string, maxPages int) ([]models.Job, er
 }
 
 func parseProgramaThorCard(card *html.Node) (models.Job, bool) {
-	titleLink := find(card, func(n *html.Node) bool {
-		return isTag(n, "a") && hasClass(n, "job-title")
-	})
-	if titleLink == nil {
-		titleLink = find(card, func(n *html.Node) bool { return isTag(n, "a") })
-	}
+	titleLink := find(card, func(n *html.Node) bool { return isTag(n, "a") })
 	if titleLink == nil {
 		return models.Job{}, false
 	}
@@ -95,18 +90,14 @@ func parseProgramaThorCard(card *html.Node) (models.Job, bool) {
 	}
 	jobURL := resolveURL(programaThorBaseURL, href)
 
-	title := textContent(titleLink)
+	titleNode := find(card, func(n *html.Node) bool { return isTag(n, "h3") })
+	title := textContent(titleNode)
 	if title == "" {
 		return models.Job{}, false
 	}
 
-	var company, location string
-	if n := find(card, func(n *html.Node) bool { return isTag(n, "span") && hasClass(n, "company-name") }); n != nil {
-		company = textContent(n)
-	}
-	if n := find(card, func(n *html.Node) bool { return isTag(n, "span") && hasClass(n, "job-location") }); n != nil {
-		location = textContent(n)
-	}
+	company := textContent(programaThorIconParent(card, "fa-briefcase"))
+	location := textContent(programaThorIconParent(card, "fa-map-marker-alt"))
 
 	return models.Job{
 		ID:       hashID(jobURL),
@@ -132,10 +123,21 @@ func fetchProgramaThorDescription(jobURL string) (string, error) {
 	}
 
 	desc := find(doc, func(n *html.Node) bool {
-		return isTag(n, "div") && hasClass(n, "job-description")
+		return isTag(n, "div") && hasClass(n, "line-height-2-4")
 	})
 	if desc == nil {
 		return "", nil
 	}
 	return textContent(desc), nil
+}
+
+// programaThorIconParent localiza o ícone FontAwesome com a classe informada
+// (ex: "fa-briefcase") e retorna seu elemento pai, cujo texto é o valor
+// exibido ao lado do ícone (empresa, localização, etc).
+func programaThorIconParent(card *html.Node, iconClass string) *html.Node {
+	icon := find(card, func(n *html.Node) bool { return isTag(n, "i") && hasClass(n, iconClass) })
+	if icon == nil {
+		return nil
+	}
+	return icon.Parent
 }

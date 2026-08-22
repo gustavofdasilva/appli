@@ -16,9 +16,11 @@ const indeedBaseURL = "https://br.indeed.com"
 
 // IndeedCrawler busca vagas via scraping do Indeed Brasil (br.indeed.com).
 //
-// O markup do Indeed muda com frequência e o site pode bloquear scraping sem
-// aviso — se o parsing parar de encontrar vagas, os seletores abaixo são o
-// primeiro lugar a revisar.
+// Desabilitado em config.yaml desde 2026-08-22: o Indeed passou a bloquear
+// com 403 (WAF anti-bot) toda requisição, inclusive a página de busca
+// principal — não é algo que os seletores de parsing resolvem. Reativar
+// exigiria um browser headless (ex: chromedp) e provavelmente proxies
+// residenciais para não cair no bloqueio.
 type IndeedCrawler struct{}
 
 // NewIndeedCrawler cria um novo crawler para o Indeed Brasil.

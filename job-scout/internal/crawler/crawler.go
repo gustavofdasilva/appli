@@ -58,7 +58,6 @@ func (o *Orchestrator) Run() ([]models.Job, error) {
 			jobs, err := entry.Crawler.Fetch(term, entry.MaxPages)
 			if err != nil {
 				slog.Error("crawler: erro ao buscar vagas", "source", name, "term", term, "error", err)
-				continue
 			}
 
 			for _, j := range jobs {

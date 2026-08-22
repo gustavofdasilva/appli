@@ -16,8 +16,13 @@ const tramposBaseURL = "https://trampos.co"
 
 // TramposCrawler busca vagas via scraping do Trampos.co (trampos.co).
 //
-// O markup do site pode mudar com o tempo — se o parsing parar de encontrar
-// vagas, os seletores abaixo são o primeiro lugar a revisar.
+// Desabilitado em config.yaml: o site migrou para uma SPA (Ember/"frodo") e
+// os resultados de busca são montados via JS no navegador — o HTML servido
+// não contém mais os cards de vaga (fica só um bloco de destaques genérico
+// da home, sem relação com o termo buscado). Os seletores abaixo refletem o
+// markup antigo e não vão encontrar nada até isso ser reescrito para usar um
+// navegador headless (ex: chromedp) ou a API JSON que o front-end consome
+// (não identificada ainda a partir do HTML estático).
 type TramposCrawler struct{}
 
 // NewTramposCrawler cria um novo crawler para o Trampos.co.
