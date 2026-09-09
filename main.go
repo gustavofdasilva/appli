@@ -51,8 +51,8 @@ func main() {
 
 	entries := buildCrawlerEntries(cfg.Crawlers)
 	orchestrator := crawler.NewOrchestrator(entries)
-	az := analyzer.NewAnalyzer(cfg.AnthropicAPIKey)
-	resumeGen := resume.NewGenerator(cfg.AnthropicAPIKey, resumeOutputDir)
+	az := analyzer.NewAnalyzer(cfg.OmniRouteBaseURL, cfg.OmniRouteAPIKey, cfg.OmniRouteModel)
+	resumeGen := resume.NewGenerator(cfg.OmniRouteBaseURL, cfg.OmniRouteAPIKey, cfg.OmniRouteModel, resumeOutputDir)
 
 	sched := scheduler.NewScheduler(cfg, db, orchestrator, az, resumeGen)
 	if err := sched.Run(); err != nil {

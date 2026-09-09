@@ -1,4 +1,5 @@
-// Package resume gera currículos personalizados em Markdown/PDF via LLM,
+// Package resume gera currículos personalizados em Markdown/PDF via um LLM
+// (via gateway OmniRoute self-hosted, com API compatível com OpenAI),
 // priorizando as experiências mais relevantes para uma vaga específica.
 package resume
 
@@ -19,10 +20,7 @@ import (
 )
 
 const (
-	anthropicAPIURL  = "https://api.anthropic.com/v1/messages"
-	anthropicVersion = "2023-06-01"
-	anthropicModel   = "claude-haiku-4-5"
-	maxTokens        = 4096
+	maxTokens = 4096
 )
 
 const systemPrompt = `Você é um especialista em criar currículos ATS-friendly.
@@ -44,16 +42,20 @@ e habilidades mais relevantes. Use palavras-chave da vaga naturalmente.`
 
 var httpClient = &http.Client{Timeout: 120 * time.Second}
 
-// Generator usa a API da Anthropic para gerar currículos personalizados em
-// Markdown e os converte para PDF via pandoc.
+// Generator usa um LLM exposto pelo gateway OmniRoute para gerar currículos
+// personalizados em Markdown e os converte para PDF via pandoc.
 type Generator struct {
+	baseURL   string
 	apiKey    string
+	model     string
 	outputDir string
 }
 
-// NewGenerator cria um novo Generator que salva os currículos em outputDir.
-func NewGenerator(apiKey, outputDir string) *Generator {
-	return &Generator{apiKey: apiKey, outputDir: outputDir}
+// NewGenerator cria um novo Generator apontando para o endpoint
+// OpenAI-compatible do OmniRoute (baseURL, ex: "http://omniroute:20128/v1"),
+// que salva os currículos em outputDir.
+func NewGenerator(baseURL, apiKey, model, outputDir string) *Generator {
+	return &Generator{baseURL: baseURL, apiKey: apiKey, model: model, outputDir: outputDir}
 }
 
 // Result é o resultado da geração de currículo para uma vaga.
@@ -125,11 +127,11 @@ func (g *Generator) GenerateForHighScoreJobs(profile string, jobs []models.Job, 
 func (g *Generator) generateMarkdown(profile string, job models.Job) (string, error) {
 	prompt := fmt.Sprintf(userPromptTemplate, profile, job.Title, job.Company, job.Description)
 
-	reqBody := messagesRequest{
-		Model:     anthropicModel,
+	reqBody := chatRequest{
+		Model:     g.model,
 		MaxTokens: maxTokens,
-		System:    systemPrompt,
-		Messages: []messageRequest{
+		Messages: []chatMessage{
+			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: prompt},
 		},
 	}
@@ -139,44 +141,43 @@ func (g *Generator) generateMarkdown(profile string, job models.Job) (string, er
 		return "", fmt.Errorf("erro ao serializar requisição: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, anthropicAPIURL, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, g.baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("erro ao criar requisição: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", g.apiKey)
-	req.Header.Set("anthropic-version", anthropicVersion)
+	req.Header.Set("Authorization", "Bearer "+g.apiKey)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("erro ao chamar api da anthropic: %w", err)
+		return "", fmt.Errorf("erro ao chamar api do omniroute: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("erro ao ler resposta da anthropic: %w", err)
+		return "", fmt.Errorf("erro ao ler resposta do omniroute: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		var apiErr anthropicErrorResponse
+		var apiErr chatErrorResponse
 		_ = json.Unmarshal(respBody, &apiErr)
 		msg := apiErr.Error.Message
 		if msg == "" {
 			msg = string(respBody)
 		}
-		return "", fmt.Errorf("status inesperado %d da anthropic: %s", resp.StatusCode, msg)
+		return "", fmt.Errorf("status inesperado %d do omniroute: %s", resp.StatusCode, msg)
 	}
 
-	var parsed messagesResponse
+	var parsed chatResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return "", fmt.Errorf("erro ao parsear resposta da anthropic: %w", err)
+		return "", fmt.Errorf("erro ao parsear resposta do omniroute: %w", err)
 	}
-	if len(parsed.Content) == 0 {
-		return "", fmt.Errorf("resposta da anthropic sem conteúdo")
+	if len(parsed.Choices) == 0 {
+		return "", fmt.Errorf("resposta do omniroute sem conteúdo")
 	}
 
-	return cleanMarkdown(parsed.Content[0].Text), nil
+	return cleanMarkdown(parsed.Choices[0].Message.Content), nil
 }
 
 // cleanMarkdown remove eventuais blocos de código markdown que o modelo
@@ -189,26 +190,24 @@ func cleanMarkdown(text string) string {
 	return strings.TrimSpace(cleaned)
 }
 
-type messagesRequest struct {
-	Model     string           `json:"model"`
-	MaxTokens int              `json:"max_tokens"`
-	System    string           `json:"system"`
-	Messages  []messageRequest `json:"messages"`
+type chatRequest struct {
+	Model     string        `json:"model"`
+	MaxTokens int           `json:"max_tokens"`
+	Messages  []chatMessage `json:"messages"`
 }
 
-type messageRequest struct {
+type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type messagesResponse struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
+type chatResponse struct {
+	Choices []struct {
+		Message chatMessage `json:"message"`
+	} `json:"choices"`
 }
 
-type anthropicErrorResponse struct {
+type chatErrorResponse struct {
 	Error struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`

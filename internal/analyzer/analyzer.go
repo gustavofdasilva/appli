@@ -1,5 +1,6 @@
-// Package analyzer usa a API da Anthropic para avaliar o fit de vagas
-// encontradas pelos crawlers contra o perfil do usuário.
+// Package analyzer usa um LLM (via gateway OmniRoute self-hosted, com API
+// compatível com OpenAI) para avaliar o fit de vagas encontradas pelos
+// crawlers contra o perfil do usuário.
 package analyzer
 
 import (
@@ -18,11 +19,8 @@ import (
 )
 
 const (
-	anthropicAPIURL  = "https://api.anthropic.com/v1/messages"
-	anthropicVersion = "2023-06-01"
-	anthropicModel   = "claude-haiku-4-5"
-	maxTokens        = 1000
-	maxRetries       = 3
+	maxTokens  = 1000
+	maxRetries = 3
 )
 
 const systemPrompt = "Você é um especialista em recrutamento e análise de fit cultural/técnico.\n" +
@@ -30,18 +28,23 @@ const systemPrompt = "Você é um especialista em recrutamento e análise de fit
 
 var httpClient = &http.Client{Timeout: 60 * time.Second}
 
-// Analyzer usa a API da Anthropic para analisar o fit de vagas contra o perfil do usuário.
+// Analyzer usa um LLM exposto pelo gateway OmniRoute para analisar o fit de
+// vagas contra o perfil do usuário.
 type Analyzer struct {
-	apiKey string
+	baseURL string
+	apiKey  string
+	model   string
 }
 
-// NewAnalyzer cria um novo Analyzer com a chave de API da Anthropic informada.
-func NewAnalyzer(apiKey string) *Analyzer {
-	return &Analyzer{apiKey: apiKey}
+// NewAnalyzer cria um novo Analyzer apontando para o endpoint OpenAI-compatible
+// do OmniRoute (baseURL, ex: "http://omniroute:20128/v1"), com a chave de API
+// e o modelo a serem usados.
+func NewAnalyzer(baseURL, apiKey, model string) *Analyzer {
+	return &Analyzer{baseURL: baseURL, apiKey: apiKey, model: model}
 }
 
-// AnalyzeJob lê o perfil do usuário em profilePath (sem cachear) e usa a API
-// da Anthropic para avaliar o fit da vaga informada, retornando uma
+// AnalyzeJob lê o perfil do usuário em profilePath (sem cachear) e usa o LLM
+// configurado para avaliar o fit da vaga informada, retornando uma
 // models.Analysis preenchida com o job_id já associado.
 func (a *Analyzer) AnalyzeJob(profilePath string, job models.Job) (models.Analysis, error) {
 	profileBytes, err := os.ReadFile(profilePath)
@@ -93,44 +96,42 @@ type analysisResult struct {
 	FitReasoning string   `json:"fit_reasoning"`
 }
 
-type messagesRequest struct {
-	Model     string           `json:"model"`
-	MaxTokens int              `json:"max_tokens"`
-	System    string           `json:"system"`
-	Messages  []messageRequest `json:"messages"`
+type chatRequest struct {
+	Model     string        `json:"model"`
+	MaxTokens int           `json:"max_tokens"`
+	Messages  []chatMessage `json:"messages"`
 }
 
-type messageRequest struct {
+type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type messagesResponse struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
+type chatResponse struct {
+	Choices []struct {
+		Message chatMessage `json:"message"`
+	} `json:"choices"`
 }
 
-type anthropicErrorResponse struct {
+type chatErrorResponse struct {
 	Error struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
 	} `json:"error"`
 }
 
-// retryableError representa um erro transitório da API da Anthropic
-// (rate limit ou erro de servidor) que justifica uma nova tentativa.
+// retryableError representa um erro transitório do gateway OmniRoute (rate
+// limit ou erro de servidor) que justifica uma nova tentativa.
 type retryableError struct {
 	statusCode int
 	message    string
 }
 
 func (e *retryableError) Error() string {
-	return fmt.Sprintf("erro transitório da anthropic (status %d): %s", e.statusCode, e.message)
+	return fmt.Sprintf("erro transitório do omniroute (status %d): %s", e.statusCode, e.message)
 }
 
-// callWithRetry chama a API da Anthropic, tentando novamente com backoff
+// callWithRetry chama o gateway OmniRoute, tentando novamente com backoff
 // exponencial (e jitter aleatório) quando a resposta indica rate limit ou
 // erro de servidor, até maxRetries tentativas.
 func (a *Analyzer) callWithRetry(prompt string) (analysisResult, error) {
@@ -138,7 +139,7 @@ func (a *Analyzer) callWithRetry(prompt string) (analysisResult, error) {
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			delay := backoffDelay(attempt)
-			slog.Warn("anthropic: erro transitório, aguardando antes de tentar novamente",
+			slog.Warn("omniroute: erro transitório, aguardando antes de tentar novamente",
 				"attempt", attempt+1, "delay", delay, "error", lastErr)
 			time.Sleep(delay)
 		}
@@ -165,11 +166,11 @@ func backoffDelay(attempt int) time.Duration {
 }
 
 func (a *Analyzer) callAPI(prompt string) (string, error) {
-	reqBody := messagesRequest{
-		Model:     anthropicModel,
+	reqBody := chatRequest{
+		Model:     a.model,
 		MaxTokens: maxTokens,
-		System:    systemPrompt,
-		Messages: []messageRequest{
+		Messages: []chatMessage{
+			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: prompt},
 		},
 	}
@@ -179,27 +180,26 @@ func (a *Analyzer) callAPI(prompt string) (string, error) {
 		return "", fmt.Errorf("erro ao serializar requisição: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, anthropicAPIURL, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, a.baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("erro ao criar requisição: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", a.apiKey)
-	req.Header.Set("anthropic-version", anthropicVersion)
+	req.Header.Set("Authorization", "Bearer "+a.apiKey)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("erro ao chamar api da anthropic: %w", err)
+		return "", fmt.Errorf("erro ao chamar api do omniroute: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("erro ao ler resposta da anthropic: %w", err)
+		return "", fmt.Errorf("erro ao ler resposta do omniroute: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		var apiErr anthropicErrorResponse
+		var apiErr chatErrorResponse
 		_ = json.Unmarshal(respBody, &apiErr)
 		msg := apiErr.Error.Message
 		if msg == "" {
@@ -209,18 +209,18 @@ func (a *Analyzer) callAPI(prompt string) (string, error) {
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError {
 			return "", &retryableError{statusCode: resp.StatusCode, message: msg}
 		}
-		return "", fmt.Errorf("status inesperado %d da anthropic: %s", resp.StatusCode, msg)
+		return "", fmt.Errorf("status inesperado %d do omniroute: %s", resp.StatusCode, msg)
 	}
 
-	var parsed messagesResponse
+	var parsed chatResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return "", fmt.Errorf("erro ao parsear resposta da anthropic: %w", err)
+		return "", fmt.Errorf("erro ao parsear resposta do omniroute: %w", err)
 	}
-	if len(parsed.Content) == 0 {
-		return "", fmt.Errorf("resposta da anthropic sem conteúdo")
+	if len(parsed.Choices) == 0 {
+		return "", fmt.Errorf("resposta do omniroute sem conteúdo")
 	}
 
-	return parsed.Content[0].Text, nil
+	return parsed.Choices[0].Message.Content, nil
 }
 
 // parseResult faz o parse do JSON retornado pelo modelo, removendo eventuais

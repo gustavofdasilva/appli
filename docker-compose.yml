@@ -1,0 +1,25 @@
+services:
+  omniroute:
+    image: diegosouzapw/omniroute:latest
+    container_name: omniroute
+    restart: unless-stopped
+    ports:
+      - "20128:20128"
+    volumes:
+      - omniroute-data:/app/data
+
+  job-scout:
+    build: .
+    container_name: job-scout
+    restart: unless-stopped
+    depends_on:
+      - omniroute
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./profile.md:/app/profile.md:ro
+      - ./data:/app/data
+
+volumes:
+  omniroute-data:

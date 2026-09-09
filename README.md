@@ -1,9 +1,11 @@
 # Job Scout
 
-Ferramenta pessoal que rastreia vagas de emprego em múltiplas fontes, usa a
-API da Anthropic (Claude) para avaliar o fit de cada vaga contra seu perfil
-e gera currículos personalizados para as vagas mais promissoras — tudo
-rodando periodicamente em background, com um dashboard web pra acompanhar.
+Ferramenta pessoal que rastreia vagas de emprego em múltiplas fontes, usa um
+LLM (via [OmniRoute](https://github.com/BunsDev/omniroute), um gateway de IA
+self-hosted com endpoint compatível com OpenAI) para avaliar o fit de cada
+vaga contra seu perfil e gera currículos personalizados para as vagas mais
+promissoras — tudo rodando periodicamente em background, com um dashboard
+web pra acompanhar.
 
 Pipeline: **crawl → dedup → análise de fit (LLM) → geração de currículo →
 dashboard**.
@@ -26,10 +28,16 @@ funcionando normalmente — veja [Limitações conhecidas](#limitações-conheci
 
 ## Configuração inicial
 
-1. **Preencha o `config.yaml`**: chave de API da Anthropic
-   (`anthropic_api_key`), expressão cron (`schedule`), `min_fit_score`,
+1. **Preencha o `config.yaml`**: endpoint e chave de API do OmniRoute
+   (`omniroute_base_url`, `omniroute_api_key`), modelo a ser roteado
+   (`omniroute_model`), expressão cron (`schedule`), `min_fit_score`,
    `server_port` e a lista de `crawlers` (quais fontes ficam habilitadas,
-   termos de busca e número de páginas por termo).
+   termos de busca e número de páginas por termo). Veja
+   `example.config.yaml` como referência.
+   - `omniroute_api_key` é a chave gerada **dentro do OmniRoute** (dashboard
+     do gateway), não a chave do provedor real — essa fica configurada
+     dentro do próprio OmniRoute, que a usa pra rotear as chamadas pro
+     modelo escolhido.
 2. **Preencha o `profile.md`** com suas informações reais — experiência,
    tecnologias, resultados quantificados. Esse arquivo é lido do disco a
    cada análise (nunca cacheado) e enviado como contexto pra LLM tanto na
@@ -42,9 +50,33 @@ funcionando normalmente — veja [Limitações conhecidas](#limitações-conheci
 4. **Acesse o dashboard**: [http://localhost:8080](http://localhost:8080)
    (ou a porta configurada em `server_port`).
 
-Se `anthropic_api_key` estiver vazia, o job-scout continua rastreando e
+Se `omniroute_api_key` estiver vazia, o job-scout continua rastreando e
 salvando vagas normalmente — só pula as etapas de análise de fit e geração
 de currículo, com um aviso no log.
+
+## Rodar com Docker Compose
+
+O `docker-compose.yml` sobe dois serviços: o `omniroute` (gateway de IA
+self-hosted) e o `job-scout` (build a partir do `Dockerfile` deste repo).
+
+1. Copie `example.config.yaml` para `config.yaml` e preencha os campos
+   (o `omniroute_base_url` já vem apontado pra `http://omniroute:20128/v1`,
+   o nome do serviço no compose — não precisa mudar).
+2. Suba os serviços:
+   ```bash
+   docker compose up -d --build
+   ```
+3. Acesse o dashboard do OmniRoute em
+   [http://localhost:20128](http://localhost:20128), configure o(s)
+   provider(s) real(is) (ex: chave de API da Anthropic) e gere uma chave de
+   API do OmniRoute — cole essa chave em `omniroute_api_key` no
+   `config.yaml` e reinicie o job-scout (`docker compose restart job-scout`).
+4. Acesse o dashboard do job-scout em
+   [http://localhost:8080](http://localhost:8080).
+
+`config.yaml`, `profile.md` e o diretório `data/` (banco SQLite + currículos
+gerados) são montados como volumes, então persistem fora do container e
+podem ser editados sem rebuildar a imagem.
 
 ## Rodar em background no Termux
 
@@ -89,7 +121,7 @@ ignorado — não roda dois ciclos em paralelo.
 
 ```
 internal/crawler/    fontes de vagas (Gupy, Indeed, RemoteOK, ProgramaThor, Trampos; LinkedIn é stub)
-internal/analyzer/   análise de fit via API da Anthropic
+internal/analyzer/   análise de fit via LLM (gateway OmniRoute)
 internal/resume/     geração de currículo (LLM -> Markdown -> PDF via pandoc)
 internal/scheduler/  cron + orquestração do pipeline completo
 internal/server/     API HTTP + dashboard estático (embutido no binário)
@@ -112,8 +144,8 @@ internal/storage/    persistência em SQLite
   só não gera o PDF (`resume_pdf_path` fica apontando pro `.md`).
 - **Dashboard e API não têm autenticação.** Qualquer pessoa com acesso à
   porta configurada pode ver vagas, mudar status e disparar o pipeline
-  (que consome créditos da API da Anthropic). Rodar atrás de uma VPN/rede
-  privada ou só em `localhost` é recomendado.
+  (que consome créditos do provedor de LLM configurado no OmniRoute). Rodar
+  atrás de uma VPN/rede privada ou só em `localhost` é recomendado.
 - **Sem suporte a múltiplos perfis ou múltiplos usuários** — o job-scout
   assume um único `profile.md` e um único banco SQLite local.
 - **Sem paginação no `/api/jobs`** — a lista completa (filtrada) é

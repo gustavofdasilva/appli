@@ -2,10 +2,21 @@
 # job-scout — arquivo de configuração
 # =============================================================================
 
-# Chave de API da Anthropic, usada para analisar o fit das vagas com o
-# perfil (profile.md) via Claude Haiku 4.5.
-# Pode ser obtida em https://console.anthropic.com/
-anthropic_api_key: ""
+# Configuração do gateway OmniRoute (self-hosted, API compatível com
+# OpenAI), usado para analisar o fit das vagas com o perfil (profile.md) e
+# gerar os currículos personalizados.
+# Ver docker-compose.yml — por padrão o job-scout roda no mesmo compose que
+# o OmniRoute e acessa via nome do serviço ("omniroute").
+omniroute_base_url: "http://omniroute:20128/v1"
+
+# Chave de API gerada no próprio OmniRoute (dashboard do gateway), não a
+# chave do provedor real (Anthropic/OpenAI/etc — essas ficam configuradas
+# dentro do OmniRoute).
+omniroute_api_key: ""
+
+# Modelo a ser roteado pelo OmniRoute (ex: um modelo Claude configurado como
+# provider dentro do gateway).
+omniroute_model: "claude-haiku-4-5"
 
 # Expressão cron (formato padrão de 5 campos: minuto hora dia mês dia-da-semana)
 # que define a frequência de execução do crawler + análise.

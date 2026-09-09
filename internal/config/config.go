@@ -17,12 +17,19 @@ type Crawler struct {
 
 // Config representa a configuração completa do job-scout.
 type Config struct {
-	AnthropicAPIKey string    `yaml:"anthropic_api_key"`
-	Schedule        string    `yaml:"schedule"`
-	MinFitScore     int       `yaml:"min_fit_score"`
-	ServerPort      int       `yaml:"server_port"`
-	Crawlers        []Crawler `yaml:"crawlers"`
+	OmniRouteBaseURL string    `yaml:"omniroute_base_url"`
+	OmniRouteAPIKey  string    `yaml:"omniroute_api_key"`
+	OmniRouteModel   string    `yaml:"omniroute_model"`
+	Schedule         string    `yaml:"schedule"`
+	MinFitScore      int       `yaml:"min_fit_score"`
+	ServerPort       int       `yaml:"server_port"`
+	Crawlers         []Crawler `yaml:"crawlers"`
 }
+
+const (
+	defaultOmniRouteBaseURL = "http://localhost:20128/v1"
+	defaultOmniRouteModel   = "claude-haiku-4-5"
+)
 
 // Load lê e faz o parse do arquivo de configuração YAML no caminho informado.
 func Load(path string) (*Config, error) {
@@ -34,6 +41,13 @@ func Load(path string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("erro ao fazer parse do config %q: %w", path, err)
+	}
+
+	if cfg.OmniRouteBaseURL == "" {
+		cfg.OmniRouteBaseURL = defaultOmniRouteBaseURL
+	}
+	if cfg.OmniRouteModel == "" {
+		cfg.OmniRouteModel = defaultOmniRouteModel
 	}
 
 	return &cfg, nil

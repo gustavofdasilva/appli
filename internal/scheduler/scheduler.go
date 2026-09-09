@@ -149,8 +149,8 @@ func (s *Scheduler) runPipeline() {
 
 	var analisadas, comFitAlto, curriculosGerados int
 
-	if s.cfg.AnthropicAPIKey == "" {
-		slog.Warn("pipeline: anthropic_api_key não configurada — pulando análise e geração de currículos")
+	if s.cfg.OmniRouteAPIKey == "" {
+		slog.Warn("pipeline: omniroute_api_key não configurada — pulando análise e geração de currículos")
 	} else {
 		var analyses []models.Analysis
 		for _, j := range newJobs {
