@@ -7,8 +7,8 @@ vaga contra seu perfil e gera currículos personalizados para as vagas mais
 promissoras — tudo rodando periodicamente em background, com um dashboard
 web pra acompanhar.
 
-Pipeline: **crawl → dedup → análise de fit (LLM) → geração de currículo →
-dashboard**.
+Pipeline: **crawl → dedup → análise de fit (LLM) → notificação (Telegram) →
+geração de currículo → dashboard**.
 
 ## Setup no Termux
 
@@ -38,16 +38,20 @@ funcionando normalmente — veja [Limitações conhecidas](#limitações-conheci
      do gateway), não a chave do provedor real — essa fica configurada
      dentro do próprio OmniRoute, que a usa pra rotear as chamadas pro
      modelo escolhido.
-2. **Preencha o `profile.md`** com suas informações reais — experiência,
+2. **(Opcional) Configure notificações no Telegram**: `telegram_bot_token`
+   e `telegram_chat_id` — veja a seção [Notificações no
+   Telegram](#notificações-no-telegram) abaixo. Deixe ambos vazios pra
+   desabilitar.
+3. **Preencha o `profile.md`** com suas informações reais — experiência,
    tecnologias, resultados quantificados. Esse arquivo é lido do disco a
    cada análise (nunca cacheado) e enviado como contexto pra LLM tanto na
    análise de fit quanto na geração de currículo, então evite dados
    sensíveis desnecessários (CPF, endereço completo etc).
-3. **Rode**:
+4. **Rode**:
    ```bash
    go run .
    ```
-4. **Acesse o dashboard**: [http://localhost:8080](http://localhost:8080)
+5. **Acesse o dashboard**: [http://localhost:8080](http://localhost:8080)
    (ou a porta configurada em `server_port`).
 
 Se `omniroute_api_key` estiver vazia, o job-scout continua rastreando e
@@ -77,6 +81,31 @@ self-hosted) e o `job-scout` (build a partir do `Dockerfile` deste repo).
 `config.yaml`, `profile.md` e o diretório `data/` (banco SQLite + currículos
 gerados) são montados como volumes, então persistem fora do container e
 podem ser editados sem rebuildar a imagem.
+
+## Notificações no Telegram
+
+O job-scout pode enviar uma mensagem no Telegram sempre que uma vaga
+analisada atingir um `fit_score` mínimo — útil pra saber na hora das vagas
+mais promissoras sem precisar ficar checando o dashboard.
+
+1. **Crie um bot** conversando com [@BotFather](https://t.me/BotFather) no
+   Telegram (`/newbot`) e copie o token gerado.
+2. **Descubra seu `chat_id`**: envie qualquer mensagem pro bot recém-criado
+   e acesse `https://api.telegram.org/bot<TOKEN>/getUpdates` — o campo
+   `message.chat.id` da resposta é o seu `chat_id`.
+3. **Preencha no `config.yaml`**:
+   ```yaml
+   telegram_bot_token: "<token do bot>"
+   telegram_chat_id: "<seu chat_id>"
+   telegram_min_score: 70 # opcional — default é o mesmo de min_fit_score
+   ```
+4. Reinicie o job-scout (ou `docker compose restart job-scout`, se estiver
+   rodando via Docker).
+
+Se `telegram_bot_token` ou `telegram_chat_id` estiverem vazios, as
+notificações ficam desabilitadas e o pipeline continua normalmente. Falhas
+no envio (bot inválido, rate limit do Telegram etc.) são apenas logadas como
+aviso — nunca interrompem a análise ou a geração de currículo.
 
 ## Rodar em background no Termux
 

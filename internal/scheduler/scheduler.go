@@ -16,6 +16,7 @@ import (
 	"job-scout/internal/config"
 	"job-scout/internal/crawler"
 	"job-scout/internal/models"
+	"job-scout/internal/notifier"
 	"job-scout/internal/resume"
 	"job-scout/internal/storage"
 )
@@ -28,6 +29,7 @@ type Scheduler struct {
 	orchestrator *crawler.Orchestrator
 	analyzer     *analyzer.Analyzer
 	resumeGen    *resume.Generator
+	telegram     *notifier.Telegram
 
 	cron *cron.Cron
 	wg   sync.WaitGroup
@@ -39,13 +41,14 @@ type Scheduler struct {
 
 // NewScheduler cria um Scheduler com as dependências do pipeline já
 // resolvidas.
-func NewScheduler(cfg *config.Config, db *storage.DB, orchestrator *crawler.Orchestrator, az *analyzer.Analyzer, resumeGen *resume.Generator) *Scheduler {
+func NewScheduler(cfg *config.Config, db *storage.DB, orchestrator *crawler.Orchestrator, az *analyzer.Analyzer, resumeGen *resume.Generator, telegram *notifier.Telegram) *Scheduler {
 	return &Scheduler{
 		cfg:          cfg,
 		db:           db,
 		orchestrator: orchestrator,
 		analyzer:     az,
 		resumeGen:    resumeGen,
+		telegram:     telegram,
 		cron:         cron.New(),
 	}
 }
@@ -171,6 +174,8 @@ func (s *Scheduler) runPipeline() {
 			if analysis.FitScore >= s.cfg.MinFitScore {
 				comFitAlto++
 			}
+
+			s.telegram.NotifyJobAnalyzed(j, analysis)
 		}
 
 		profileBytes, err := os.ReadFile("profile.md")

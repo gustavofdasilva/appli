@@ -24,6 +24,13 @@ type Config struct {
 	MinFitScore      int       `yaml:"min_fit_score"`
 	ServerPort       int       `yaml:"server_port"`
 	Crawlers         []Crawler `yaml:"crawlers"`
+
+	TelegramBotToken string `yaml:"telegram_bot_token"`
+	TelegramChatID   string `yaml:"telegram_chat_id"`
+	// TelegramMinScore é o fit_score mínimo (0-100) pra disparar uma
+	// notificação no Telegram. Se omitido (zero), usa o mesmo valor de
+	// MinFitScore.
+	TelegramMinScore int `yaml:"telegram_min_score"`
 }
 
 const (
@@ -48,6 +55,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.OmniRouteModel == "" {
 		cfg.OmniRouteModel = defaultOmniRouteModel
+	}
+	if cfg.TelegramMinScore == 0 {
+		cfg.TelegramMinScore = cfg.MinFitScore
 	}
 
 	return &cfg, nil

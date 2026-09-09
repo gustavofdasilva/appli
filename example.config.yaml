@@ -30,6 +30,18 @@ min_fit_score: 60
 # Porta em que o servidor HTTP do dashboard vai escutar.
 server_port: 8080
 
+# Notificação via Telegram quando uma vaga analisada atinge um fit_score
+# mínimo. Deixe token/chat_id vazios para desabilitar.
+# 1. Crie um bot com @BotFather e pegue o token.
+# 2. Descubra seu chat_id (ex: enviando uma mensagem ao bot e consultando
+#    https://api.telegram.org/bot<TOKEN>/getUpdates).
+telegram_bot_token: ""
+telegram_chat_id: ""
+
+# Pontuação mínima de fit (0-100) para disparar a notificação no Telegram.
+# Se omitido (ou 0), usa o mesmo valor de min_fit_score.
+telegram_min_score: 0
+
 # Lista de crawlers configurados. Cada crawler busca vagas em uma fonte
 # específica (ex: site de empregos) usando os termos de busca informados.
 crawlers:
