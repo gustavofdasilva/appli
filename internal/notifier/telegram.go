@@ -52,18 +52,20 @@ func (t *Telegram) NotifyJobAnalyzed(job models.Job, analysis models.Analysis) {
 }
 
 func buildMessage(job models.Job, analysis models.Analysis) string {
-	msg := fmt.Sprintf("🎯 *Nova vaga com fit %d/100*\n\n*%s* — %s\n\n%s",
-		analysis.FitScore, escapeMarkdown(job.Title), escapeMarkdown(job.Company), escapeMarkdown(analysis.Summary))
+	msg := fmt.Sprintf("🎯 <b>Nova vaga com fit %d/100</b>\n\n<b>%s</b> — %s\n\n%s",
+		analysis.FitScore, escapeHTML(job.Title), escapeHTML(job.Company), escapeHTML(analysis.Summary))
 	if job.URL != "" {
-		msg += "\n\n" + job.URL
+		msg += "\n\n" + escapeHTML(job.URL)
 	}
 	return msg
 }
 
-// escapeMarkdown escapa caracteres especiais do parse_mode "Markdown" (legado)
-// do Telegram, evitando que texto da vaga vindo do LLM quebre a formatação.
-func escapeMarkdown(s string) string {
-	replacer := strings.NewReplacer("_", "\\_", "*", "\\*", "`", "\\`", "[", "\\[")
+// escapeHTML escapa os únicos caracteres que o parse_mode "HTML" do Telegram
+// interpreta (&, < e >), evitando que texto da vaga vindo do LLM ou de
+// scraping quebre a formatação. Diferente do Markdown legado, não há
+// pareamento de entidades pra desbalancear — cada caractere é independente.
+func escapeHTML(s string) string {
+	replacer := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 	return replacer.Replace(s)
 }
 
@@ -79,7 +81,7 @@ type telegramErrorResponse struct {
 }
 
 func (t *Telegram) send(text string) error {
-	reqBody := sendMessageRequest{ChatID: t.chatID, Text: text, ParseMode: "Markdown"}
+	reqBody := sendMessageRequest{ChatID: t.chatID, Text: text, ParseMode: "HTML"}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return fmt.Errorf("erro ao serializar mensagem: %w", err)
