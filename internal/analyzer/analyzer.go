@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	maxTokens  = 1000
+	maxTokens  = 4096
 	maxRetries = 3
 )
 
@@ -109,7 +109,8 @@ type chatMessage struct {
 
 type chatResponse struct {
 	Choices []struct {
-		Message chatMessage `json:"message"`
+		Message      chatMessage `json:"message"`
+		FinishReason string      `json:"finish_reason"`
 	} `json:"choices"`
 }
 
@@ -220,7 +221,12 @@ func (a *Analyzer) callAPI(prompt string) (string, error) {
 		return "", fmt.Errorf("resposta do omniroute sem conteúdo")
 	}
 
-	return parsed.Choices[0].Message.Content, nil
+	choice := parsed.Choices[0]
+	if choice.Message.Content == "" {
+		return "", fmt.Errorf("resposta do omniroute vazia (finish_reason=%q) — se o modelo roteado for de raciocínio, os tokens de pensamento podem ter consumido todo o max_tokens=%d antes de gerar a resposta final", choice.FinishReason, maxTokens)
+	}
+
+	return choice.Message.Content, nil
 }
 
 // parseResult faz o parse do JSON retornado pelo modelo, removendo eventuais

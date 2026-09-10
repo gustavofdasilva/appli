@@ -14,8 +14,11 @@ omniroute_base_url: "http://omniroute:20128/v1"
 # dentro do OmniRoute).
 omniroute_api_key: ""
 
-# Modelo a ser roteado pelo OmniRoute (ex: um modelo Claude configurado como
-# provider dentro do gateway).
+# Modelo a ser roteado pelo OmniRoute. Se você tiver mais de um provider
+# configurado no gateway que ofereça o mesmo modelo, o nome "pelado" fica
+# ambíguo e o OmniRoute rejeita a requisição (400 "Ambiguous model") — nesse
+# caso use o prefixo provider/modelo que aparece no dashboard do OmniRoute
+# em Providers/Models (ex: "kie/claude-haiku-4-5", "cnl/claude-haiku-4-5").
 omniroute_model: "claude-haiku-4-5"
 
 # Expressão cron (formato padrão de 5 campos: minuto hora dia mês dia-da-semana)

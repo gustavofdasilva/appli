@@ -177,7 +177,12 @@ func (g *Generator) generateMarkdown(profile string, job models.Job) (string, er
 		return "", fmt.Errorf("resposta do omniroute sem conteúdo")
 	}
 
-	return cleanMarkdown(parsed.Choices[0].Message.Content), nil
+	choice := parsed.Choices[0]
+	if choice.Message.Content == "" {
+		return "", fmt.Errorf("resposta do omniroute vazia (finish_reason=%q) — se o modelo roteado for de raciocínio, os tokens de pensamento podem ter consumido todo o max_tokens=%d antes de gerar a resposta final", choice.FinishReason, maxTokens)
+	}
+
+	return cleanMarkdown(choice.Message.Content), nil
 }
 
 // cleanMarkdown remove eventuais blocos de código markdown que o modelo
@@ -203,7 +208,8 @@ type chatMessage struct {
 
 type chatResponse struct {
 	Choices []struct {
-		Message chatMessage `json:"message"`
+		Message      chatMessage `json:"message"`
+		FinishReason string      `json:"finish_reason"`
 	} `json:"choices"`
 }
 

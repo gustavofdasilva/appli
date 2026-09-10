@@ -75,6 +75,11 @@ self-hosted) e o `job-scout` (build a partir do `Dockerfile` deste repo).
    provider(s) real(is) (ex: chave de API da Anthropic) e gere uma chave de
    API do OmniRoute — cole essa chave em `omniroute_api_key` no
    `config.yaml` e reinicie o job-scout (`docker compose restart job-scout`).
+   - Se você configurar **mais de um provider** que ofereça o mesmo modelo
+     (ex: dois providers com `claude-haiku-4-5`), o OmniRoute retorna `400
+     Ambiguous model` pro nome "pelado". Nesse caso, veja em
+     Providers/Models qual o slug de cada provider e prefixe
+     `omniroute_model` com ele — ex: `kie/claude-haiku-4-5`.
 4. Acesse o dashboard do job-scout em
    [http://localhost:8080](http://localhost:8080).
 
