@@ -333,7 +333,7 @@ func (db *DB) GetJobByID(id string) (models.Job, models.Analysis, error) {
 
 	var analysis models.Analysis
 	err = db.conn.QueryRow(
-		`SELECT id, job_id, fit_score, summary, benefits, fit_reasoning, resume_md, resume_pdf_path, resume_keywords, resume_points, created_at
+		`SELECT id, job_id, fit_score, summary, benefits, fit_reasoning, resume_md, resume_pdf_path, COALESCE(resume_keywords, ''), COALESCE(resume_points, ''), created_at
 		 FROM analyses WHERE job_id = ? ORDER BY created_at DESC LIMIT 1`,
 		id,
 	).Scan(&analysis.ID, &analysis.JobID, &analysis.FitScore, &analysis.Summary, &analysis.Benefits, &analysis.FitReasoning, &analysis.ResumeMD, &analysis.ResumePDFPath, &analysis.ResumeKeywords, &analysis.ResumePoints, &analysis.CreatedAt)
@@ -367,6 +367,29 @@ func (db *DB) InsertAnalysis(a models.Analysis) (string, error) {
 		return "", fmt.Errorf("erro ao inserir análise: %w", err)
 	}
 	return a.ID, nil
+}
+
+// UpdateAnalysisResult atualiza o resultado de fit (fit_score, summary,
+// benefits, fit_reasoning e created_at) de uma análise já existente,
+// preservando currículo/checklist já gerados para ela. Usado ao reanalisar
+// uma vaga manualmente pelo dashboard, pra não perder o que já foi gerado a
+// partir da análise anterior.
+func (db *DB) UpdateAnalysisResult(analysisID string, a models.Analysis) error {
+	res, err := db.conn.Exec(
+		`UPDATE analyses SET fit_score = ?, summary = ?, benefits = ?, fit_reasoning = ?, created_at = ? WHERE id = ?`,
+		a.FitScore, a.Summary, a.Benefits, a.FitReasoning, time.Now(), analysisID,
+	)
+	if err != nil {
+		return fmt.Errorf("erro ao atualizar análise %q: %w", analysisID, err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("erro ao verificar atualização da análise %q: %w", analysisID, err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("análise %q não encontrada", analysisID)
+	}
+	return nil
 }
 
 // UpdateJobStatus atualiza o status de uma vaga existente.

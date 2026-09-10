@@ -74,7 +74,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.ServerPort),
-		Handler: server.New(db, sched, resumeGen, checklistGen).Handler(),
+		Handler: server.New(db, sched, az, resumeGen, checklistGen, telegram).Handler(),
 	}
 
 	go func() {

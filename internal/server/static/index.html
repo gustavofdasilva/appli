@@ -84,6 +84,10 @@
           </div>
           <div class="detail-row">
             <span class="score-pill big" :class="scoreClass(selected)" v-text="'Score: ' + scoreLabel(selected)"></span>
+            <button class="generate-button" :disabled="analyzing" :title="selected.has_analysis ? 'Analisar a vaga de novo (atualiza fit_score/resumo)' : 'Analisar essa vaga'" @click="analyzeJob(selected)">
+              <span v-if="analyzing" class="spinner"></span>
+              <span v-text="analyzing ? 'Analisando...' : (selected.has_analysis ? 'Reanalisar' : 'Analisar vaga')"></span>
+            </button>
             <div class="status-select-wrap">
               <select class="status-select" :value="selected.status" @change="changeStatus($event)">
                 <option value="new">Novo</option>
@@ -165,6 +169,7 @@
         minScore: 40,
         selectedId: null,
         running: false,
+        analyzing: false,
         resumeGenerating: false,
         checklistGenerating: false,
         toast: '',
@@ -260,6 +265,24 @@
         openResume(job) {
           if (!job || !job.resume_pdf_path) return;
           window.open(`/api/jobs/${job.id}/resume`, '_blank');
+        },
+
+        async analyzeJob(job) {
+          if (!job || this.analyzing) return;
+          this.analyzing = true;
+          try {
+            const res = await fetch(`/api/jobs/${job.id}/analyze`, { method: 'POST' });
+            if (!res.ok) throw new Error('status ' + res.status);
+            const updated = await res.json();
+            const idx = this.jobs.findIndex(j => j.id === job.id);
+            if (idx !== -1) this.jobs[idx] = updated;
+            this.showToast('Vaga analisada ✓');
+          } catch (err) {
+            console.error('falha ao analisar vaga', err);
+            this.showToast('Erro ao analisar vaga');
+          } finally {
+            this.analyzing = false;
+          }
         },
 
         async generateResume(job) {

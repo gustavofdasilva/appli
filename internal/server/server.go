@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"job-scout/internal/analyzer"
 	"job-scout/internal/checklist"
+	"job-scout/internal/notifier"
 	"job-scout/internal/resume"
 	"job-scout/internal/scheduler"
 	"job-scout/internal/storage"
@@ -37,15 +39,17 @@ var validStatuses = map[string]bool{
 type Server struct {
 	db           *storage.DB
 	scheduler    *scheduler.Scheduler
+	analyzer     *analyzer.Analyzer
 	resumeGen    *resume.Generator
 	checklistGen *checklist.Generator
+	telegram     *notifier.Telegram
 	mux          *http.ServeMux
 }
 
 // New cria um Server com as rotas da API e os arquivos estáticos do
 // dashboard já registrados.
-func New(db *storage.DB, sched *scheduler.Scheduler, resumeGen *resume.Generator, checklistGen *checklist.Generator) *Server {
-	s := &Server{db: db, scheduler: sched, resumeGen: resumeGen, checklistGen: checklistGen, mux: http.NewServeMux()}
+func New(db *storage.DB, sched *scheduler.Scheduler, az *analyzer.Analyzer, resumeGen *resume.Generator, checklistGen *checklist.Generator, telegram *notifier.Telegram) *Server {
+	s := &Server{db: db, scheduler: sched, analyzer: az, resumeGen: resumeGen, checklistGen: checklistGen, telegram: telegram, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -64,6 +68,7 @@ func (s *Server) routes() {
 
 	s.mux.HandleFunc("GET /api/jobs", s.handleListJobs)
 	s.mux.HandleFunc("GET /api/jobs/{id}", s.handleGetJob)
+	s.mux.HandleFunc("POST /api/jobs/{id}/analyze", s.handleAnalyzeJob)
 	s.mux.HandleFunc("GET /api/jobs/{id}/resume", s.handleGetResume)
 	s.mux.HandleFunc("POST /api/jobs/{id}/resume", s.handleGenerateResume)
 	s.mux.HandleFunc("POST /api/jobs/{id}/checklist", s.handleGenerateChecklist)
@@ -112,6 +117,56 @@ func (s *Server) handleGetJob(w http.ResponseWriter, r *http.Request) {
 		"job":      job,
 		"analysis": analysis,
 	})
+}
+
+// handleAnalyzeJob dispara manualmente a análise de fit de uma vaga —
+// primeira análise (se ela nunca foi analisada, por exemplo por falha na
+// etapa automática) ou reanálise (atualiza fit_score/summary/benefits/
+// fit_reasoning de uma análise já existente, preservando currículo/checklist
+// já gerados pra ela).
+func (s *Server) handleAnalyzeJob(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	job, existing, err := s.db.GetJobByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "vaga não encontrada")
+		return
+	}
+
+	analysis, err := s.analyzer.AnalyzeJob(profilePath, job)
+	if err != nil {
+		slog.Warn("server: falha ao analisar vaga", "title", job.Title, "error", err)
+		writeError(w, http.StatusBadGateway, "falha ao analisar vaga")
+		return
+	}
+
+	if existing.ID != "" {
+		analysis.ID = existing.ID
+		if err := s.db.UpdateAnalysisResult(existing.ID, analysis); err != nil {
+			slog.Error("server: erro ao atualizar análise", "error", err)
+			writeError(w, http.StatusInternalServerError, "erro ao salvar análise")
+			return
+		}
+	} else {
+		analysisID, err := s.db.InsertAnalysis(analysis)
+		if err != nil {
+			slog.Error("server: erro ao salvar análise", "error", err)
+			writeError(w, http.StatusInternalServerError, "erro ao salvar análise")
+			return
+		}
+		analysis.ID = analysisID
+	}
+
+	s.telegram.NotifyJobAnalyzed(job, analysis)
+
+	updated, err := s.db.GetJobWithAnalysisByID(id)
+	if err != nil {
+		slog.Error("server: erro ao buscar vaga atualizada", "error", err)
+		writeError(w, http.StatusInternalServerError, "erro ao buscar vaga atualizada")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (s *Server) handleGetResume(w http.ResponseWriter, r *http.Request) {

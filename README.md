@@ -150,6 +150,7 @@ ignorado — não roda dois ciclos em paralelo.
 |---|---|
 | `GET /api/jobs?status=&min_score=` | Lista vagas + análise, ordenadas por fit_score |
 | `GET /api/jobs/{id}` | Detalhes completos de uma vaga (job + analysis) |
+| `POST /api/jobs/{id}/analyze` | Analisa (ou reanalisa) a vaga via LLM — primeira análise se nunca rodou, ou atualiza fit_score/resumo preservando currículo/checklist já gerados |
 | `GET /api/jobs/{id}/resume` | Serve o currículo em PDF (ou `.md` como fallback) |
 | `POST /api/jobs/{id}/resume` | Gera o currículo completo (Markdown/PDF) pra essa vaga — exige vaga já analisada |
 | `POST /api/jobs/{id}/checklist` | Gera o checklist de palavras-chave/pontos pro currículo dessa vaga — exige vaga já analisada |
