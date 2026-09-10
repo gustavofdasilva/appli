@@ -18,15 +18,17 @@ type Job struct {
 
 // Analysis representa o resultado da análise de fit de uma vaga feita pela LLM.
 type Analysis struct {
-	ID            string    `json:"id"`
-	JobID         string    `json:"job_id"`
-	FitScore      int       `json:"fit_score"`
-	Summary       string    `json:"summary"`
-	Benefits      string    `json:"benefits"`
-	FitReasoning  string    `json:"fit_reasoning"`
-	ResumeMD      string    `json:"resume_md"`
-	ResumePDFPath string    `json:"resume_pdf_path"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID             string    `json:"id"`
+	JobID          string    `json:"job_id"`
+	FitScore       int       `json:"fit_score"`
+	Summary        string    `json:"summary"`
+	Benefits       string    `json:"benefits"`
+	FitReasoning   string    `json:"fit_reasoning"`
+	ResumeMD       string    `json:"resume_md"`
+	ResumePDFPath  string    `json:"resume_pdf_path"`
+	ResumeKeywords string    `json:"resume_keywords"`
+	ResumePoints   string    `json:"resume_points"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 // Profile representa um par chave/valor do perfil do usuário armazenado no banco.

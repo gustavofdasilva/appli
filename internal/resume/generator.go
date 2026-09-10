@@ -58,14 +58,6 @@ func NewGenerator(baseURL, apiKey, model, outputDir string) *Generator {
 	return &Generator{baseURL: baseURL, apiKey: apiKey, model: model, outputDir: outputDir}
 }
 
-// Result é o resultado da geração de currículo para uma vaga.
-type Result struct {
-	Job        models.Job
-	AnalysisID string
-	Path       string
-	Err        error
-}
-
 // Generate gera um currículo personalizado em Markdown para a vaga informada,
 // salva-o em outputDir/{job_id}.md e tenta convertê-lo para PDF via pandoc.
 // Retorna o caminho do PDF gerado ou, se a conversão falhar, o caminho do
@@ -97,31 +89,6 @@ func (g *Generator) Generate(profile string, job models.Job, analysis models.Ana
 	}
 
 	return filepath.Join(g.outputDir, pdfFilename), nil
-}
-
-// GenerateForHighScoreJobs filtra as análises com fit_score >= minFitScore e
-// gera um currículo para cada vaga correspondente.
-func (g *Generator) GenerateForHighScoreJobs(profile string, jobs []models.Job, analyses []models.Analysis, minFitScore int) []Result {
-	jobByID := make(map[string]models.Job, len(jobs))
-	for _, j := range jobs {
-		jobByID[j.ID] = j
-	}
-
-	var results []Result
-	for _, a := range analyses {
-		if a.FitScore < minFitScore {
-			continue
-		}
-		job, ok := jobByID[a.JobID]
-		if !ok {
-			continue
-		}
-
-		path, err := g.Generate(profile, job, a)
-		results = append(results, Result{Job: job, AnalysisID: a.ID, Path: path, Err: err})
-	}
-
-	return results
 }
 
 func (g *Generator) generateMarkdown(profile string, job models.Job) (string, error) {

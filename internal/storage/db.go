@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -64,6 +65,8 @@ CREATE TABLE IF NOT EXISTS analyses (
 	fit_reasoning TEXT,
 	resume_md TEXT,
 	resume_pdf_path TEXT,
+	resume_keywords TEXT,
+	resume_points TEXT,
 	created_at DATETIME NOT NULL
 );
 
@@ -74,6 +77,27 @@ CREATE TABLE IF NOT EXISTS profile (
 `
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("erro ao criar tabelas: %w", err)
+	}
+
+	// CREATE TABLE IF NOT EXISTS não adiciona colunas a tabelas já
+	// existentes — bancos criados antes do checklist de currículo existir
+	// precisam dessas colunas adicionadas manualmente.
+	if err := addColumnIfMissing(db.conn, "analyses", "resume_keywords", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(db.conn, "analyses", "resume_points", "TEXT"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// addColumnIfMissing tenta adicionar a coluna à tabela, ignorando o erro caso
+// ela já exista (SQLite não suporta "ADD COLUMN IF NOT EXISTS").
+func addColumnIfMissing(conn *sql.DB, table, column, sqlType string) error {
+	_, err := conn.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, sqlType))
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("erro ao adicionar coluna %q em %q: %w", column, table, err)
 	}
 	return nil
 }
@@ -171,12 +195,47 @@ func (db *DB) GetJobs(status string, minScore int) ([]models.Job, error) {
 // analisada, caso em que os demais campos de análise vêm zerados.
 type JobWithAnalysis struct {
 	models.Job
-	FitScore      int    `json:"fit_score"`
-	Summary       string `json:"summary"`
-	Benefits      string `json:"benefits"`
-	FitReasoning  string `json:"fit_reasoning"`
-	ResumePDFPath string `json:"resume_pdf_path"`
-	HasAnalysis   bool   `json:"has_analysis"`
+	FitScore       int    `json:"fit_score"`
+	Summary        string `json:"summary"`
+	Benefits       string `json:"benefits"`
+	FitReasoning   string `json:"fit_reasoning"`
+	ResumePDFPath  string `json:"resume_pdf_path"`
+	ResumeKeywords string `json:"resume_keywords"`
+	ResumePoints   string `json:"resume_points"`
+	HasAnalysis    bool   `json:"has_analysis"`
+}
+
+// jobsWithAnalysisSelect é a base da query usada tanto por
+// GetJobsWithAnalysis (lista, com filtros) quanto por GetJobWithAnalysisByID
+// (uma vaga só) — sempre traz a análise mais recente de cada vaga (se houver).
+const jobsWithAnalysisSelect = `
+	SELECT j.id, j.source, j.title, j.company, j.location, j.url, j.description, j.salary, j.found_at, j.status,
+	       COALESCE(a.id, ''), COALESCE(a.fit_score, 0), COALESCE(a.summary, ''), COALESCE(a.benefits, ''), COALESCE(a.fit_reasoning, ''),
+	       COALESCE(a.resume_pdf_path, ''), COALESCE(a.resume_keywords, ''), COALESCE(a.resume_points, '')
+	FROM jobs j
+	LEFT JOIN analyses a ON a.id = (
+		SELECT id FROM analyses WHERE job_id = j.id ORDER BY created_at DESC LIMIT 1
+	)
+`
+
+// rowScanner é satisfeita tanto por *sql.Row quanto por *sql.Rows, permitindo
+// reaproveitar scanJobWithAnalysis nos dois casos (uma linha ou várias).
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanJobWithAnalysis(row rowScanner) (JobWithAnalysis, error) {
+	var item JobWithAnalysis
+	var analysisID string
+	if err := row.Scan(
+		&item.ID, &item.Source, &item.Title, &item.Company, &item.Location, &item.URL, &item.Description, &item.Salary, &item.FoundAt, &item.Status,
+		&analysisID, &item.FitScore, &item.Summary, &item.Benefits, &item.FitReasoning,
+		&item.ResumePDFPath, &item.ResumeKeywords, &item.ResumePoints,
+	); err != nil {
+		return JobWithAnalysis{}, err
+	}
+	item.HasAnalysis = analysisID != ""
+	return item, nil
 }
 
 // GetJobsWithAnalysis retorna as vagas com os dados da análise mais recente
@@ -184,15 +243,7 @@ type JobWithAnalysis struct {
 // fit. Strings vazias e valores <= 0 desativam o respectivo filtro. O
 // resultado vem ordenado por fit_score decrescente.
 func (db *DB) GetJobsWithAnalysis(status string, minScore int) ([]JobWithAnalysis, error) {
-	query := `
-		SELECT j.id, j.source, j.title, j.company, j.location, j.url, j.description, j.salary, j.found_at, j.status,
-		       COALESCE(a.id, ''), COALESCE(a.fit_score, 0), COALESCE(a.summary, ''), COALESCE(a.benefits, ''), COALESCE(a.fit_reasoning, ''), COALESCE(a.resume_pdf_path, '')
-		FROM jobs j
-		LEFT JOIN analyses a ON a.id = (
-			SELECT id FROM analyses WHERE job_id = j.id ORDER BY created_at DESC LIMIT 1
-		)
-		WHERE 1=1
-	`
+	query := jobsWithAnalysisSelect + " WHERE 1=1"
 	args := []any{}
 
 	if status != "" {
@@ -213,15 +264,10 @@ func (db *DB) GetJobsWithAnalysis(status string, minScore int) ([]JobWithAnalysi
 
 	results := []JobWithAnalysis{}
 	for rows.Next() {
-		var item JobWithAnalysis
-		var analysisID string
-		if err := rows.Scan(
-			&item.ID, &item.Source, &item.Title, &item.Company, &item.Location, &item.URL, &item.Description, &item.Salary, &item.FoundAt, &item.Status,
-			&analysisID, &item.FitScore, &item.Summary, &item.Benefits, &item.FitReasoning, &item.ResumePDFPath,
-		); err != nil {
+		item, err := scanJobWithAnalysis(rows)
+		if err != nil {
 			return nil, fmt.Errorf("erro ao ler vaga com análise: %w", err)
 		}
-		item.HasAnalysis = analysisID != ""
 		results = append(results, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -229,6 +275,22 @@ func (db *DB) GetJobsWithAnalysis(status string, minScore int) ([]JobWithAnalysi
 	}
 
 	return results, nil
+}
+
+// GetJobWithAnalysisByID retorna uma única vaga com os dados da sua análise
+// mais recente (se houver), no mesmo formato "achatado" de
+// GetJobsWithAnalysis — usado pelos endpoints que geram currículo/checklist
+// sob demanda pra devolver a vaga já atualizada.
+func (db *DB) GetJobWithAnalysisByID(id string) (JobWithAnalysis, error) {
+	row := db.conn.QueryRow(jobsWithAnalysisSelect+" WHERE j.id = ?", id)
+	item, err := scanJobWithAnalysis(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return JobWithAnalysis{}, fmt.Errorf("vaga %q não encontrada: %w", id, err)
+		}
+		return JobWithAnalysis{}, fmt.Errorf("erro ao buscar vaga %q com análise: %w", id, err)
+	}
+	return item, nil
 }
 
 // CountJobsByStatus retorna o total de vagas agrupado por status.
@@ -271,10 +333,10 @@ func (db *DB) GetJobByID(id string) (models.Job, models.Analysis, error) {
 
 	var analysis models.Analysis
 	err = db.conn.QueryRow(
-		`SELECT id, job_id, fit_score, summary, benefits, fit_reasoning, resume_md, resume_pdf_path, created_at
+		`SELECT id, job_id, fit_score, summary, benefits, fit_reasoning, resume_md, resume_pdf_path, resume_keywords, resume_points, created_at
 		 FROM analyses WHERE job_id = ? ORDER BY created_at DESC LIMIT 1`,
 		id,
-	).Scan(&analysis.ID, &analysis.JobID, &analysis.FitScore, &analysis.Summary, &analysis.Benefits, &analysis.FitReasoning, &analysis.ResumeMD, &analysis.ResumePDFPath, &analysis.CreatedAt)
+	).Scan(&analysis.ID, &analysis.JobID, &analysis.FitScore, &analysis.Summary, &analysis.Benefits, &analysis.FitReasoning, &analysis.ResumeMD, &analysis.ResumePDFPath, &analysis.ResumeKeywords, &analysis.ResumePoints, &analysis.CreatedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return job, models.Analysis{}, fmt.Errorf("erro ao buscar análise da vaga %q: %w", id, err)
 	}
@@ -328,6 +390,23 @@ func (db *DB) UpdateResumePath(analysisID string, path string) error {
 	res, err := db.conn.Exec(`UPDATE analyses SET resume_pdf_path = ? WHERE id = ?`, path, analysisID)
 	if err != nil {
 		return fmt.Errorf("erro ao atualizar caminho do currículo da análise %q: %w", analysisID, err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("erro ao verificar atualização da análise %q: %w", analysisID, err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("análise %q não encontrada", analysisID)
+	}
+	return nil
+}
+
+// UpdateResumeChecklist atualiza o checklist de palavras-chave/pontos
+// gerado sob demanda para uma análise.
+func (db *DB) UpdateResumeChecklist(analysisID string, keywords string, points string) error {
+	res, err := db.conn.Exec(`UPDATE analyses SET resume_keywords = ?, resume_points = ? WHERE id = ?`, keywords, points, analysisID)
+	if err != nil {
+		return fmt.Errorf("erro ao atualizar checklist de currículo da análise %q: %w", analysisID, err)
 	}
 	rows, err := res.RowsAffected()
 	if err != nil {

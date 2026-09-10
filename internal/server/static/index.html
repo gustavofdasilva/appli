@@ -99,6 +99,10 @@
               Abrir vaga
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M9 7h8v8"></path></svg>
             </a>
+            <button class="generate-button" :disabled="resumeGenerating || !selected.has_analysis" :title="!selected.has_analysis ? 'Analise a vaga primeiro' : 'Gerar currículo completo (Markdown/PDF) pra essa vaga'" @click="generateResume(selected)">
+              <span v-if="resumeGenerating" class="spinner"></span>
+              <span v-text="resumeGenerating ? 'Gerando...' : 'Gerar currículo'"></span>
+            </button>
             <button class="resume-button" :class="{ available: selected.resume_pdf_path }" :disabled="!selected.resume_pdf_path" :title="selected.resume_pdf_path ? 'Abrir currículo gerado' : 'Currículo ainda não gerado'" @click="openResume(selected)">Ver currículo</button>
           </div>
         </div>
@@ -124,6 +128,22 @@
             <p v-text="selected.fit_reasoning"></p>
           </div>
 
+          <div class="detail-section" v-if="selected.has_analysis">
+            <div class="section-header-row">
+              <span class="detail-section-label">Checklist do currículo</span>
+              <button class="generate-button" :disabled="checklistGenerating" @click="generateChecklist(selected)">
+                <span v-if="checklistGenerating" class="spinner"></span>
+                <span v-text="checklistGenerating ? 'Gerando...' : (benefitsList(selected.resume_keywords).length ? 'Gerar novamente' : 'Gerar checklist')"></span>
+              </button>
+            </div>
+            <div class="benefits-row" v-if="benefitsList(selected.resume_keywords).length">
+              <span class="benefit-pill" v-for="k in benefitsList(selected.resume_keywords)" :key="k" v-text="k"></span>
+            </div>
+            <ul class="checklist-points" v-if="benefitsList(selected.resume_points).length">
+              <li v-for="p in benefitsList(selected.resume_points)" :key="p" v-text="p"></li>
+            </ul>
+          </div>
+
           <button class="description-toggle" @click="toggleDesc()">
             <span v-text="'Descrição completa ' + (descOpen ? '▾' : '▸')"></span>
           </button>
@@ -145,6 +165,8 @@
         minScore: 40,
         selectedId: null,
         running: false,
+        resumeGenerating: false,
+        checklistGenerating: false,
         toast: '',
         descOpen: false,
         mobile: window.innerWidth < 1024,
@@ -238,6 +260,42 @@
         openResume(job) {
           if (!job || !job.resume_pdf_path) return;
           window.open(`/api/jobs/${job.id}/resume`, '_blank');
+        },
+
+        async generateResume(job) {
+          if (!job || this.resumeGenerating) return;
+          this.resumeGenerating = true;
+          try {
+            const res = await fetch(`/api/jobs/${job.id}/resume`, { method: 'POST' });
+            if (!res.ok) throw new Error('status ' + res.status);
+            const updated = await res.json();
+            const idx = this.jobs.findIndex(j => j.id === job.id);
+            if (idx !== -1) this.jobs[idx] = updated;
+            this.showToast('Currículo gerado ✓');
+          } catch (err) {
+            console.error('falha ao gerar currículo', err);
+            this.showToast('Erro ao gerar currículo');
+          } finally {
+            this.resumeGenerating = false;
+          }
+        },
+
+        async generateChecklist(job) {
+          if (!job || this.checklistGenerating) return;
+          this.checklistGenerating = true;
+          try {
+            const res = await fetch(`/api/jobs/${job.id}/checklist`, { method: 'POST' });
+            if (!res.ok) throw new Error('status ' + res.status);
+            const updated = await res.json();
+            const idx = this.jobs.findIndex(j => j.id === job.id);
+            if (idx !== -1) this.jobs[idx] = updated;
+            this.showToast('Checklist gerado ✓');
+          } catch (err) {
+            console.error('falha ao gerar checklist', err);
+            this.showToast('Erro ao gerar checklist');
+          } finally {
+            this.checklistGenerating = false;
+          }
         },
 
         showToast(msg) {

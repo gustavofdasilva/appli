@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"job-scout/internal/analyzer"
+	"job-scout/internal/checklist"
 	"job-scout/internal/config"
 	"job-scout/internal/crawler"
 	"job-scout/internal/notifier"
@@ -54,12 +55,13 @@ func main() {
 	orchestrator := crawler.NewOrchestrator(entries)
 	az := analyzer.NewAnalyzer(cfg.OmniRouteBaseURL, cfg.OmniRouteAPIKey, cfg.OmniRouteModel)
 	resumeGen := resume.NewGenerator(cfg.OmniRouteBaseURL, cfg.OmniRouteAPIKey, cfg.OmniRouteModel, resumeOutputDir)
+	checklistGen := checklist.NewGenerator(cfg.OmniRouteBaseURL, cfg.OmniRouteAPIKey, cfg.OmniRouteModel)
 	telegram := notifier.NewTelegram(cfg.TelegramBotToken, cfg.TelegramChatID, cfg.TelegramMinScore)
 	if !telegram.Enabled() {
 		slog.Warn("telegram: bot_token ou chat_id não configurados — notificações desabilitadas")
 	}
 
-	sched := scheduler.NewScheduler(cfg, db, orchestrator, az, resumeGen, telegram)
+	sched := scheduler.NewScheduler(cfg, db, orchestrator, az, telegram)
 	if err := sched.Run(); err != nil {
 		slog.Error("falha ao iniciar scheduler", "error", err)
 		os.Exit(1)
@@ -72,7 +74,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.ServerPort),
-		Handler: server.New(db, sched).Handler(),
+		Handler: server.New(db, sched, resumeGen, checklistGen).Handler(),
 	}
 
 	go func() {

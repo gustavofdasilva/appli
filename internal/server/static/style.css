@@ -510,6 +510,31 @@ header {
   border-color: var(--border-strong);
 }
 
+.generate-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.generate-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.generate-button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.7;
+}
+
 .resume-button {
   display: inline-flex;
   align-items: center;
@@ -580,6 +605,24 @@ header {
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 12px;
+}
+
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.checklist-points {
+  margin: 0;
+  padding-left: 18px;
+  color: #cccccc;
+  line-height: 1.7;
+}
+
+.checklist-points li {
+  margin-bottom: 4px;
 }
 
 .description-toggle {

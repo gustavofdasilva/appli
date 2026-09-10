@@ -1,12 +1,13 @@
 // Package scheduler agenda e executa o pipeline completo do job-scout
-// (crawl -> análise -> geração de currículo) em um horário configurável.
+// (crawl -> dedup -> análise de fit -> notificação) em um horário
+// configurável. Geração de currículo completo e de checklist são ações
+// manuais, disparadas pelo dashboard (ver internal/server).
 package scheduler
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"job-scout/internal/crawler"
 	"job-scout/internal/models"
 	"job-scout/internal/notifier"
-	"job-scout/internal/resume"
 	"job-scout/internal/storage"
 )
 
@@ -28,7 +28,6 @@ type Scheduler struct {
 	db           *storage.DB
 	orchestrator *crawler.Orchestrator
 	analyzer     *analyzer.Analyzer
-	resumeGen    *resume.Generator
 	telegram     *notifier.Telegram
 
 	cron *cron.Cron
@@ -41,13 +40,12 @@ type Scheduler struct {
 
 // NewScheduler cria um Scheduler com as dependências do pipeline já
 // resolvidas.
-func NewScheduler(cfg *config.Config, db *storage.DB, orchestrator *crawler.Orchestrator, az *analyzer.Analyzer, resumeGen *resume.Generator, telegram *notifier.Telegram) *Scheduler {
+func NewScheduler(cfg *config.Config, db *storage.DB, orchestrator *crawler.Orchestrator, az *analyzer.Analyzer, telegram *notifier.Telegram) *Scheduler {
 	return &Scheduler{
 		cfg:          cfg,
 		db:           db,
 		orchestrator: orchestrator,
 		analyzer:     az,
-		resumeGen:    resumeGen,
 		telegram:     telegram,
 		cron:         cron.New(),
 	}
@@ -106,8 +104,9 @@ func (s *Scheduler) LastRun() (time.Time, bool) {
 
 // runPipeline executa um ciclo completo: crawl de todas as fontes
 // habilitadas, dedup e persistência das vagas novas, análise de fit via LLM
-// e geração de currículo para as vagas com fit_score acima do mínimo
-// configurado.
+// e notificação no Telegram das vagas que atingirem o fit_score mínimo
+// configurado. Currículo completo e checklist são gerados manualmente,
+// depois, pelo dashboard.
 func (s *Scheduler) runPipeline() {
 	s.mu.Lock()
 	if s.running {
@@ -150,12 +149,11 @@ func (s *Scheduler) runPipeline() {
 	}
 	slog.Info("pipeline: crawlers concluídos", "total_vagas", len(jobs), "novas_vagas", len(newJobs), "por_fonte", bySource)
 
-	var analisadas, comFitAlto, curriculosGerados int
+	var analisadas, comFitAlto int
 
 	if s.cfg.OmniRouteAPIKey == "" {
-		slog.Warn("pipeline: omniroute_api_key não configurada — pulando análise e geração de currículos")
+		slog.Warn("pipeline: omniroute_api_key não configurada — pulando análise")
 	} else {
-		var analyses []models.Analysis
 		for _, j := range newJobs {
 			analysis, err := s.analyzer.AnalyzeJob("profile.md", j)
 			if err != nil {
@@ -168,7 +166,6 @@ func (s *Scheduler) runPipeline() {
 				continue
 			}
 			analysis.ID = id
-			analyses = append(analyses, analysis)
 
 			analisadas++
 			if analysis.FitScore >= s.cfg.MinFitScore {
@@ -176,25 +173,6 @@ func (s *Scheduler) runPipeline() {
 			}
 
 			s.telegram.NotifyJobAnalyzed(j, analysis)
-		}
-
-		profileBytes, err := os.ReadFile("profile.md")
-		if err != nil {
-			slog.Warn("pipeline: falha ao ler perfil para geração de currículos, pulando etapa", "error", err)
-		} else {
-			results := s.resumeGen.GenerateForHighScoreJobs(string(profileBytes), newJobs, analyses, s.cfg.MinFitScore)
-			for _, r := range results {
-				if r.Err != nil {
-					slog.Warn("pipeline: falha ao gerar currículo", "title", r.Job.Title, "error", r.Err)
-					continue
-				}
-				if err := s.db.UpdateResumePath(r.AnalysisID, r.Path); err != nil {
-					slog.Warn("pipeline: falha ao salvar caminho do currículo", "title", r.Job.Title, "error", err)
-					continue
-				}
-				curriculosGerados++
-				slog.Info("pipeline: currículo gerado", "title", r.Job.Title, "path", r.Path)
-			}
 		}
 	}
 
@@ -208,6 +186,5 @@ func (s *Scheduler) runPipeline() {
 		"vagas_novas", len(newJobs),
 		"vagas_analisadas", analisadas,
 		"vagas_com_fit_alto", comFitAlto,
-		"curriculos_gerados", curriculosGerados,
 	)
 }

@@ -1,14 +1,17 @@
 # Job Scout
 
-Ferramenta pessoal que rastreia vagas de emprego em múltiplas fontes, usa um
+Ferramenta pessoal que rastreia vagas de emprego em múltiplas fontes e usa um
 LLM (via [OmniRoute](https://github.com/BunsDev/omniroute), um gateway de IA
 self-hosted com endpoint compatível com OpenAI) para avaliar o fit de cada
-vaga contra seu perfil e gera currículos personalizados para as vagas mais
-promissoras — tudo rodando periodicamente em background, com um dashboard
-web pra acompanhar.
+vaga contra seu perfil — tudo rodando periodicamente em background, com um
+dashboard web pra acompanhar. A partir do dashboard, manualmente e vaga a
+vaga, dá pra gerar um **checklist de palavras-chave/pontos** pro currículo
+ou o **currículo completo** (Markdown/PDF).
 
-Pipeline: **crawl → dedup → análise de fit (LLM) → notificação (Telegram) →
-geração de currículo → dashboard**.
+Pipeline automático: **crawl → dedup → análise de fit (LLM) → notificação
+(Telegram) → dashboard**. Checklist e currículo completo são ações manuais,
+disparadas por você, vaga a vaga, no dashboard — não rodam mais sozinhos a
+cada ciclo.
 
 ## Setup no Termux
 
@@ -55,8 +58,9 @@ funcionando normalmente — veja [Limitações conhecidas](#limitações-conheci
    (ou a porta configurada em `server_port`).
 
 Se `omniroute_api_key` estiver vazia, o job-scout continua rastreando e
-salvando vagas normalmente — só pula as etapas de análise de fit e geração
-de currículo, com um aviso no log.
+salvando vagas normalmente — só pula a etapa de análise de fit (e,
+consequentemente, checklist/currículo continuam disponíveis no dashboard,
+mas exigem que a vaga já tenha sido analisada), com um aviso no log.
 
 ## Rodar com Docker Compose
 
@@ -147,6 +151,8 @@ ignorado — não roda dois ciclos em paralelo.
 | `GET /api/jobs?status=&min_score=` | Lista vagas + análise, ordenadas por fit_score |
 | `GET /api/jobs/{id}` | Detalhes completos de uma vaga (job + analysis) |
 | `GET /api/jobs/{id}/resume` | Serve o currículo em PDF (ou `.md` como fallback) |
+| `POST /api/jobs/{id}/resume` | Gera o currículo completo (Markdown/PDF) pra essa vaga — exige vaga já analisada |
+| `POST /api/jobs/{id}/checklist` | Gera o checklist de palavras-chave/pontos pro currículo dessa vaga — exige vaga já analisada |
 | `POST /api/jobs/{id}/status` | Atualiza status (`new`/`reviewed`/`applied`/`ignored`) |
 | `POST /api/trigger` | Dispara o pipeline imediatamente |
 | `GET /api/status` | Último run, próximo run, contagem de vagas por status |
@@ -155,9 +161,11 @@ ignorado — não roda dois ciclos em paralelo.
 
 ```
 internal/crawler/    fontes de vagas (Gupy, Indeed, RemoteOK, ProgramaThor, Trampos; LinkedIn é stub)
-internal/analyzer/   análise de fit via LLM (gateway OmniRoute)
-internal/resume/     geração de currículo (LLM -> Markdown -> PDF via pandoc)
-internal/scheduler/  cron + orquestração do pipeline completo
+internal/analyzer/   análise de fit via LLM (gateway OmniRoute), automática no pipeline
+internal/checklist/  checklist de palavras-chave/pontos pro currículo (LLM), sob demanda via dashboard
+internal/resume/     currículo completo (LLM -> Markdown -> PDF via pandoc), sob demanda via dashboard
+internal/notifier/   notificação no Telegram
+internal/scheduler/  cron + orquestração do pipeline automático (crawl + análise + notificação)
 internal/server/     API HTTP + dashboard estático (embutido no binário)
 internal/storage/    persistência em SQLite
 ```
@@ -173,9 +181,10 @@ internal/storage/    persistência em SQLite
   seletores CSS em `internal/crawler/*.go` são o primeiro lugar a revisar.
   Gupy e RemoteOK usam API pública/JSON e são mais estáveis.
 - **PDF depende de `pandoc` + `weasyprint` instalados no sistema.** Se
-  `pandoc` não for encontrado (ou falhar), o currículo em Markdown ainda é
-  salvo em `data/resumes/{job_id}.md` e o pipeline continua normalmente —
-  só não gera o PDF (`resume_pdf_path` fica apontando pro `.md`).
+  `pandoc` não for encontrado (ou falhar) ao gerar o currículo completo
+  manualmente pelo dashboard, o currículo em Markdown ainda é salvo em
+  `data/resumes/{job_id}.md` — só não gera o PDF (`resume_pdf_path` fica
+  apontando pro `.md`).
 - **Dashboard e API não têm autenticação.** Qualquer pessoa com acesso à
   porta configurada pode ver vagas, mudar status e disparar o pipeline
   (que consome créditos do provedor de LLM configurado no OmniRoute). Rodar
@@ -188,13 +197,14 @@ internal/storage/    persistência em SQLite
 - **Sem suíte de testes automatizados.** A validação até agora foi manual
   (builds, `go vet`, smoke tests pontuais contra APIs reais e contra um
   banco de dados de teste). Adicionar testes automatizados pros pacotes
-  `crawler`, `analyzer`, `resume` e `scheduler` é um próximo passo natural.
+  `crawler`, `analyzer`, `resume`, `checklist` e `scheduler` é um próximo
+  passo natural.
 - **Sem restart automático em caso de crash** no fluxo do Termux+tmux
   documentado acima — se o processo cair, é preciso reabrir a sessão tmux
   e rodar `go run .` de novo manualmente.
 - **Shutdown gracioso não usa timeout pro pipeline em execução** — ao
   receber `SIGINT`/`SIGTERM`, o processo espera qualquer ciclo do pipeline
-  em andamento (crawl + análise + geração de currículo) terminar antes de
-  fechar o banco de dados. Isso evita corromper dados, mas significa que
-  encerrar o processo durante um disparo manual pode demorar (o HTTP
-  server, por outro lado, tem um timeout de shutdown de 10s).
+  em andamento (crawl + análise) terminar antes de fechar o banco de dados.
+  Isso evita corromper dados, mas significa que encerrar o processo durante
+  um disparo manual pode demorar (o HTTP server, por outro lado, tem um
+  timeout de shutdown de 10s).
