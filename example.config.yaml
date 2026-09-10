@@ -72,3 +72,36 @@ crawlers:
     enabled: false
     search_terms: []
     max_pages: 0
+  - name: weworkremotely
+    enabled: true
+    search_terms: ["golang", "backend", "go developer", "software engineer"]
+    max_pages: 1 # ignorado — feeds RSS não têm paginação
+  - name: lever
+    enabled: true
+    search_terms: ["golang", "backend", "go", "software engineer", "backend engineer"]
+    max_pages: 1 # ignorado — busca em todas as empresas configuradas de uma vez
+    # Lista de empresas com boards públicas no Lever (jobs.lever.co/{slug}).
+    # Para adicionar uma empresa, verifique primeiro:
+    #   curl "https://api.lever.co/v0/postings/{slug}?mode=json"
+    # Resposta JSON (mesmo vazio) = válido. 404 = empresa não usa Lever.
+    # Fonte inicial verificada em jul/2026 via jobspipe.dev/companies-using/lever
+    companies:
+      # Verificadas com vagas abertas em jul/2026
+      - spotify
+      - palantir
+      - matchgroup
+      - zoox
+      - whoop
+      - gopuff
+      - ro
+      - aircall
+      - ledger
+      - entrata
+      # Verificadas com conta ativa (sem vagas abertas no momento da checagem)
+      # Manter na lista pois podem abrir vagas — o crawler trata array vazio sem erro
+      - kraken
+      - mistral
+  - name: hackernews
+    enabled: true
+    search_terms: ["golang", "go", "backend", "remote", "software engineer"]
+    max_pages: 1 # ignorado — usa os primeiros 200 comentários do thread mensal

@@ -16,11 +16,18 @@ var httpClient = &http.Client{Timeout: 20 * time.Second}
 
 // httpGet faz uma requisição GET com um User-Agent de navegador e retorna o corpo da resposta.
 func httpGet(url string) ([]byte, error) {
+	return httpGetWithUA(url, userAgent)
+}
+
+// httpGetWithUA faz uma requisição GET com o User-Agent informado e retorna
+// o corpo da resposta — usado por fontes que não precisam (ou não devem) se
+// passar por um navegador, como feeds RSS oficiais e APIs públicas.
+func httpGetWithUA(url, ua string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao criar requisição para %q: %w", url, err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
 
 	resp, err := httpClient.Do(req)

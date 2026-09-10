@@ -51,7 +51,7 @@ func main() {
 		"crawlers", len(cfg.Crawlers),
 	)
 
-	entries := buildCrawlerEntries(cfg.Crawlers)
+	entries := buildCrawlerEntries(cfg.Crawlers, db)
 	orchestrator := crawler.NewOrchestrator(entries)
 	az := analyzer.NewAnalyzer(cfg.OmniRouteBaseURL, cfg.OmniRouteAPIKey, cfg.OmniRouteModel)
 	resumeGen := resume.NewGenerator(cfg.OmniRouteBaseURL, cfg.OmniRouteAPIKey, cfg.OmniRouteModel, resumeOutputDir)
@@ -104,15 +104,19 @@ func main() {
 }
 
 // buildCrawlerEntries instancia os crawlers correspondentes às entradas
-// habilitadas em config.yaml.
-func buildCrawlerEntries(crawlers []config.Crawler) []crawler.Entry {
-	factories := map[string]func() crawler.Crawler{
-		"gupy":         func() crawler.Crawler { return crawler.NewGupyCrawler() },
-		"indeed":       func() crawler.Crawler { return crawler.NewIndeedCrawler() },
-		"remoteok":     func() crawler.Crawler { return crawler.NewRemoteOKCrawler() },
-		"programathor": func() crawler.Crawler { return crawler.NewProgramaThorCrawler() },
-		"trampos":      func() crawler.Crawler { return crawler.NewTramposCrawler() },
-		"linkedin":     func() crawler.Crawler { return crawler.NewLinkedInCrawler() },
+// habilitadas em config.yaml. db é usado só pelo crawler "hackernews", que
+// consulta o banco pra evitar rodar mais de uma vez por semana.
+func buildCrawlerEntries(crawlers []config.Crawler, db *storage.DB) []crawler.Entry {
+	factories := map[string]func(c config.Crawler) crawler.Crawler{
+		"gupy":           func(c config.Crawler) crawler.Crawler { return crawler.NewGupyCrawler() },
+		"indeed":         func(c config.Crawler) crawler.Crawler { return crawler.NewIndeedCrawler() },
+		"remoteok":       func(c config.Crawler) crawler.Crawler { return crawler.NewRemoteOKCrawler() },
+		"programathor":   func(c config.Crawler) crawler.Crawler { return crawler.NewProgramaThorCrawler() },
+		"trampos":        func(c config.Crawler) crawler.Crawler { return crawler.NewTramposCrawler() },
+		"linkedin":       func(c config.Crawler) crawler.Crawler { return crawler.NewLinkedInCrawler() },
+		"weworkremotely": func(c config.Crawler) crawler.Crawler { return crawler.NewWeWorkRemotelyCrawler(c.SearchTerms) },
+		"lever":          func(c config.Crawler) crawler.Crawler { return crawler.NewLeverCrawler(c.Companies, c.SearchTerms) },
+		"hackernews":     func(c config.Crawler) crawler.Crawler { return crawler.NewHackerNewsCrawler(db, c.SearchTerms) },
 	}
 
 	var entries []crawler.Entry
@@ -126,9 +130,10 @@ func buildCrawlerEntries(crawlers []config.Crawler) []crawler.Entry {
 			continue
 		}
 		entries = append(entries, crawler.Entry{
-			Crawler:     factory(),
+			Crawler:     factory(c),
 			SearchTerms: c.SearchTerms,
 			MaxPages:    c.MaxPages,
+			Companies:   c.Companies,
 		})
 	}
 	return entries

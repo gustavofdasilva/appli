@@ -13,6 +13,10 @@ type Crawler struct {
 	Enabled     bool     `yaml:"enabled"`
 	SearchTerms []string `yaml:"search_terms"`
 	MaxPages    int      `yaml:"max_pages"`
+	// Companies é usado só pelo crawler "lever" — lista de slugs de
+	// empresas (ex: "stripe") cujas boards públicas do Lever serão
+	// consultadas, já que o Lever não tem busca global.
+	Companies []string `yaml:"companies"`
 }
 
 // Config representa a configuração completa do job-scout.

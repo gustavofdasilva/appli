@@ -161,7 +161,7 @@ ignorado — não roda dois ciclos em paralelo.
 ## Estrutura
 
 ```
-internal/crawler/    fontes de vagas (Gupy, Indeed, RemoteOK, ProgramaThor, Trampos; LinkedIn é stub)
+internal/crawler/    fontes de vagas (Gupy, Indeed, RemoteOK, ProgramaThor, Trampos, WeWorkRemotely, Lever, Hacker News; LinkedIn é stub)
 internal/analyzer/   análise de fit via LLM (gateway OmniRoute), automática no pipeline
 internal/checklist/  checklist de palavras-chave/pontos pro currículo (LLM), sob demanda via dashboard
 internal/resume/     currículo completo (LLM -> Markdown -> PDF via pandoc), sob demanda via dashboard
@@ -180,7 +180,19 @@ internal/storage/    persistência em SQLite
   API pública. O markup desses sites muda com frequência e pode quebrar o
   parsing sem aviso — se um desses crawlers parar de encontrar vagas, os
   seletores CSS em `internal/crawler/*.go` são o primeiro lugar a revisar.
-  Gupy e RemoteOK usam API pública/JSON e são mais estáveis.
+  Gupy, RemoteOK, WeWorkRemotely (feeds RSS), Lever (API JSON das boards) e
+  Hacker News (API do Algolia + API oficial do HN) usam fontes
+  estruturadas/oficiais e são mais estáveis.
+- **Lever exige uma lista fixa de empresas.** Diferente das outras fontes,
+  o Lever não tem busca global — o crawler só encontra vagas das empresas
+  listadas em `companies` no `config.yaml`. Pra adicionar mais empresas,
+  basta incluir o slug (a parte final da URL `jobs.lever.co/{slug}`).
+- **Hacker News roda no máximo uma vez por semana**, mesmo que o pipeline
+  automático rode diariamente — o thread "who is hiring" é mensal, então o
+  crawler consulta o banco (`found_at` mais recente da fonte
+  `hackernews`) e pula a execução se já rodou nos últimos 7 dias. O parsing
+  dos comentários (company/title/location/salary) é best-effort via regex,
+  já que os comentários não seguem um formato fixo.
 - **PDF depende de `pandoc` + `weasyprint` instalados no sistema.** Se
   `pandoc` não for encontrado (ou falhar) ao gerar o currículo completo
   manualmente pelo dashboard, o currículo em Markdown ainda é salvo em

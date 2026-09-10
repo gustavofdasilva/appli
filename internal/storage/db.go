@@ -148,6 +148,25 @@ func (db *DB) JobExistsByURL(url string) bool {
 	return count > 0
 }
 
+// LatestJobFoundAt retorna o found_at mais recente entre as vagas de uma
+// fonte específica (ex: "hackernews"). O segundo valor é false se nenhuma
+// vaga dessa fonte existir ainda. Usado por crawlers que só devem rodar de
+// tempos em tempos (ex: threads mensais) pra saber quando rodaram por
+// último.
+func (db *DB) LatestJobFoundAt(source string) (time.Time, bool, error) {
+	var foundAt time.Time
+	err := db.conn.QueryRow(
+		`SELECT found_at FROM jobs WHERE source = ? ORDER BY found_at DESC LIMIT 1`, source,
+	).Scan(&foundAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, fmt.Errorf("erro ao buscar found_at mais recente da fonte %q: %w", source, err)
+	}
+	return foundAt, true, nil
+}
+
 // GetJobs retorna as vagas filtradas por status e/ou pontuação mínima de fit.
 // Strings vazias e valores <= 0 desativam o respectivo filtro.
 func (db *DB) GetJobs(status string, minScore int) ([]models.Job, error) {
